@@ -227,3 +227,35 @@ requestAnimationFrame(animate);
 * **`timer.update(timestamp)` & `timer.getDelta()`:** Ermittelt exakt die vergangene Zeit $\Delta t$ (in Sekunden) seit dem letzten Frame.
 * **`mixer.update(delta)`:** Rechnet die Keyframe-Transformationen exakt um das Zeitintervall weiter. Dadurch läuft die Animation auf einem 60-Hz- und einem 144-Hz-Display physikalisch exakt gleich schnell ab (*Frame-Rate Independence*).
 * **`controls.update()`:** Berechnet das träge Nachschwingen der Kamera (*Damping*).
+
+---
+
+## 8. Hufkontakt-Analyse & Schwellwert-Ermittlung
+
+Um präzise zu erkennen, wann die Hufe den Boden ($Y = 0$) berühren und wann sie sich in der Luft befinden, werden die Knochenkoordinaten der Zehenglieder kontinuierlich ausgewertet.
+
+### 8.1 Knochenhierarchie & anatomische Ursachen für zwei Schwellwerte
+
+Eine messtechnische Abtastung der Knochenkoordinaten (`getWorldPosition`) über alle Animations-Keyframes ergab folgende Wertebereiche:
+
+| Huf / Knochen | Knochenname | Ruhelage (Rest) | Min. Höhe (Boden) | Max. Höhe (Luft) | Empfohlener Schwellwert |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Vorne Links (VL)** | `E_front_toeL` | `0.1416 m` | `0.1352 m` | `0.4665 m` | **`0.155 m`** |
+| **Vorne Rechts (VR)** | `E_front_toeR` | `0.1416 m` | `0.1360 m` | `0.4374 m` | **`0.155 m`** |
+| **Hinten Links (HL)** | `E_toeL` | `0.2512 m` | `0.2416 m` | `0.6068 m` | **`0.265 m`** |
+| **Hinten Rechts (HR)** | `E_toeR` | `0.2512 m` | `0.2416 m` | `0.6068 m` | **`0.265 m`** |
+
+#### Warum zwei unterschiedliche Schwellwerte?
+1. **Unterschiedliche Knochenhöhe im Rig:** Das 3D-Gitter (*Mesh*) der Hufe schließt an allen vier Hufen bei exakt $Y = 0.000$ mit dem Boden ab. Die Knochenursprünge (*Bone Origins*) der Zehenglieder sitzen im Skelett jedoch auf unterschiedlichen Höhen:
+   * Die vorderen Zehenknochen (`E_front_toeL / R`) sitzen tiefer im Huf auf ca. **`0.14 m`**.
+   * Die hinteren Zehenknochen (`E_toeL / R`) sitzen anatomisch bedingt (Fesselgelenk-Geometrie des Rigs) höher auf ca. **`0.25 m`**.
+2. **Schwellwert-Logik:**
+   * Ein Huf gilt als **am Boden**, wenn $Y_{\text{Knochen}} \le \text{Schwellwert}$.
+   * Ein Huf gilt als **in der Luft**, wenn $Y_{\text{Knochen}} > \text{Schwellwert}$.
+   * Durch `thresholdFront = 0.155 m` und `thresholdBack = 0.265 m` wird ein robuster Toleranzbereich von ca. $1.5\text{ cm}$ über dem minimalen Bodenwert gewährleistet.
+
+### 8.2 Visuelle 3D- und 2D-Anzeige
+
+* **2D Glassmorphism-HUD:** Ein modulares Info-Panel am oberen linken Bildschirmrand visualisiert alle 4 Hufe (VL, VR, HL, HR) in Echtzeit mit Status-Badges (`BODEN` in Grün vs. `LUFT` in Blau), Live-$Y$-Werten, Schwellwertmarkierungen und einer Aufprall-Ereignisanzeige.
+* **3D-Bodenringe & Höhenlinien:** Direkt unter jedem Huf wird ein Kontaktring auf den Boden ($Y = 0.002$) projiziert. Bei Bodenkontakt leuchtet der Ring grün mit gefüllter Scheibe; in der Luft wird er transparent und zeigt als Schatten die Bodenprojektion. Eine dynamische Höhenlinie visualisiert die Distanz zum Boden.
+* **lil-gui Steuerung:** Beide Schwellwerte sowie alle visuellen Hilfen lassen sich über Slider framegenau justieren und austesten.

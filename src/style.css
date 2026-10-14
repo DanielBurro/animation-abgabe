@@ -6,5 +6,230 @@
 
 body {
   overflow: hidden;
-  background-color: #111;
+  background-color: #1b1d23;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  user-select: none;
+}
+
+/* ── Ground Contact HUD Overlay (Kompakt & Untereinander) ──── */
+.contact-hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1000;
+  width: 220px;
+  background: rgba(22, 25, 33, 0.90);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+  color: #e2e8f0;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.hud-icon {
+  font-size: 13px;
+}
+
+.hud-gait-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+/* ── Vertikale Huf-Liste (Untereinander angeordnet) ────────── */
+.hud-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hud-card {
+  background: rgba(30, 34, 45, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  padding: 6px 9px;
+  transition: all 0.12s ease;
+}
+
+.hud-card.card-grounded {
+  border-color: rgba(16, 185, 129, 0.55);
+  background: rgba(16, 185, 129, 0.14);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.hud-card.card-air {
+  border-color: rgba(148, 163, 184, 0.14);
+  opacity: 0.85;
+}
+
+/* Erste Zeile im Kärtchen: Huf-Name links, Status-Badge rechts */
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.card-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.status-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  min-width: 36px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.badge-ground {
+  background: #065f46;
+  color: #34d399;
+  border: 1px solid #10b981;
+}
+
+.badge-air {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+/* Zweite Zeile im Kärtchen: Y-Höhe links, Pegelbalken rechts */
+.card-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.metric-value {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 44px;
+}
+
+.meter-bar {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: visible;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.04s ease;
+}
+
+.meter-fill.fill-ground {
+  background: #10b981;
+}
+
+.meter-fill.fill-air {
+  background: #38bdf8;
+}
+
+.meter-threshold {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #f59e0b;
+  border-radius: 1px;
+  z-index: 2;
+}
+
+.hud-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+
+.threshold-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 7px;
+  font-size: 9.5px;
+}
+
+.threshold-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #94a3b8;
+}
+
+.threshold-row strong {
+  color: #f59e0b;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.impact-event-ticker {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 8.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #cbd5e1;
+  border-left: 2px solid #10b981;
 }
