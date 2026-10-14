@@ -170,34 +170,13 @@ function transitionTo(nextName) {
 
 ---
 
-## 6. GUI-Steuerung (`lil-gui`)
+## 6. Konsolidierte Steuerung: Das Skelett-Studio
 
-```javascript
-const gui = new GUI({ title: 'Pferde-Steuerung' });
+Statt unübersichtlicher Standard-Menüs (`lil-gui`) und separater Einzelfenster sind alle Steuer- und Analysefunktionen in einem einzigen, modernen **Skelett-Studio** an der Seite zusammengefasst.
 
-gui.add(settings, 'currentAnimation', animNames)
-  .name('Gangart')
-  .onChange((name) => transitionTo(name));
-
-gui.add(settings, 'crossfadeDuration', 0.1, 2.0, 0.1)
-  .name('Übergang (s)');
-
-gui.add(settings, 'speed', 0.1, 2.5, 0.1)
-  .name('Tempo')
-  .onChange((val) => {
-    if (mixer) mixer.timeScale = settings.paused ? 0 : val;
-  });
-
-gui.add(settings, 'paused')
-  .name('Pausieren')
-  .onChange((isPaused) => {
-    if (mixer) mixer.timeScale = isPaused ? 0 : settings.speed;
-  });
-
-```
-
-* **Dynamisches Dropdown:** Das Dropdown-Menü wird erst befüllt, sobald die GLB-Datei fertig geladen ist (`animNames`). So funktioniert der Code unabhängig davon, wie die Animationsspuren in Blender oder der 3D-Software benannt wurden (z. B. *Walk*, *Trot*, *Gallop*).
-* **`mixer.timeScale`:** Skaliert die Ablaufgeschwindigkeit aller Aktionen des Mixers. Ein Wert von `2.0` verdoppelt die Schrittfrequenz, `0.0` pausiert die Animation framegenau.
+* **Zentralisiert:** Gangarten, Geschwindigkeiten, Hufschwellwerte, 3D-Rigg-Visualisierungen und Timeline sind in 5 Reitern ergonomisch vereint.
+* **Minimalistischer Viewport:** Der 3D-Canvas bleibt frei von störenden Standard-Overlays.
+* **Tastatur-Kürzel:** Mit <kbd>B</kbd> oder <kbd>Tab</kbd> kann das gesamte Studio nahtlos ein- und ausgeblendet werden.
 
 ---
 
@@ -254,8 +233,104 @@ Eine messtechnische Abtastung der Knochenkoordinaten (`getWorldPosition`) über 
    * Ein Huf gilt als **in der Luft**, wenn $Y_{\text{Knochen}} > \text{Schwellwert}$.
    * Durch `thresholdFront = 0.155 m` und `thresholdBack = 0.265 m` wird ein robuster Toleranzbereich von ca. $1.5\text{ cm}$ über dem minimalen Bodenwert gewährleistet.
 
-### 8.2 Visuelle 3D- und 2D-Anzeige
+### 8.2 Visuelle 3D-Bodenkontakt-Anzeige
 
-* **2D Glassmorphism-HUD:** Ein modulares Info-Panel am oberen linken Bildschirmrand visualisiert alle 4 Hufe (VL, VR, HL, HR) in Echtzeit mit Status-Badges (`BODEN` in Grün vs. `LUFT` in Blau), Live-$Y$-Werten, Schwellwertmarkierungen und einer Aufprall-Ereignisanzeige.
 * **3D-Bodenringe & Höhenlinien:** Direkt unter jedem Huf wird ein Kontaktring auf den Boden ($Y = 0.002$) projiziert. Bei Bodenkontakt leuchtet der Ring grün mit gefüllter Scheibe; in der Luft wird er transparent und zeigt als Schatten die Bodenprojektion. Eine dynamische Höhenlinie visualisiert die Distanz zum Boden.
-* **lil-gui Steuerung:** Beide Schwellwerte sowie alle visuellen Hilfen lassen sich über Slider framegenau justieren und austesten.
+* **Studio-Integration:** Sämtliche Schwellwerte, Live-Zustände aller 4 Hufe (BODEN/LUFT), Aufprallgeschwindigkeiten sowie die Phasen-Diagramme sind vollständig im Studio-Seitenpanel (Reiter *Biomechanik*) integriert.
+
+
+---
+
+## 9. Skelett-Studio & Analyse-Tool (Seitenpanel)
+
+Um das Skelett bis ins kleinste Detail inspizieren und manuell steuern zu können, verfügt die Anwendung über ein vollwertiges **Skelett- und Biomechanik-Studio** am rechten Bildschirmrand (Taste `B` oder `Tab` zum Ein-/Ausblenden).
+
+```
+   ┌─────────────────────────────────────────────────────────────────┐
+   │ 🦴 SKELETT-STUDIO (Seitenpanel)                                │
+   ├───────────┬─────────────┬────────────┬─────────────┬────────────┤
+   │ 🌳 Baum   │ 🎛️ Knochen  │ ⏱️ Timeline │ 📊 Biomech  │ 👁️ Ansicht │
+   └───────────┴─────────────┴────────────┴─────────────┴────────────┘
+```
+
+### 9.1 Wie baut sich das Skelett auf? (Anatomische Hierarchie)
+
+Das Skelett des Pferdes besteht aus **34 Knochen (`THREE.Bone`)**, die als hierarchischer Baum (*Szenengraph*) organisiert sind. Jede Drehung eines Elternknochens vererbt sich über Vorwärtskinematik (*Forward Kinematics*) an alle Unterglieder:
+
+```mermaid
+graph TD
+    Root["E_spine004 (Rumpfzentrum / Root)"] --> Tail["E_spine003 -> 002 -> 001 -> spine (Schweif)"]
+    Root --> PelvisSpine["E_spine005 (Lenden-Becken-Übergang)"]
+    PelvisSpine --> PelvisL["E_pelvisL (Becken Links)"]
+    PelvisSpine --> PelvisR["E_pelvisR (Becken Rechts)"]
+    PelvisSpine --> LegHL["E_thighL -> shinL -> footL -> toeL (Hinterlauf Links)"]
+    PelvisSpine --> LegHR["E_thighR -> shinR -> footR -> toeR (Hinterlauf Rechts)"]
+    PelvisSpine --> SpineFwd["E_spine006 -> 007 -> 008 (Brust & Widerrist)"]
+    SpineFwd --> NeckHead["E_spine009 -> 010 -> 011 (Hals & Kopf)"]
+    SpineFwd --> Breast["E_breastL & E_breastR (Brustansatz)"]
+    SpineFwd --> LegVL["E_shoulderL -> front_thighL -> front_shinL -> front_footL -> front_toeL (Vorderlauf Links)"]
+    SpineFwd --> LegVR["E_shoulderR -> front_thighR -> front_shinR -> front_footR -> front_toeR (Vorderlauf Rechts)"]
+```
+
+#### Die 6 Körperregionen & 34 Knochen im Überblick:
+
+1. **Rumpfzentrum & Wirbelsäule (5 Knochen):**
+   * `E_spine004`: **Wurzelknochen (Root)** – Schwerpunkt des Pferdes.
+   * `E_spine005`: Lenden-Kreuzbein-Übergang.
+   * `E_spine006` – `E_spine008`: Hintere bis vordere Brustwirbel und Widerrist.
+2. **Kopf & Hals (3 Knochen):**
+   * `E_spine009` (Halsbasis), `E_spine010` (Nacken), `E_spine011` (Schädel, Maul, Kiefer).
+3. **Vorderbeine & Schultergürtel (10 Knochen):**
+   * Links: `E_shoulderL` (Schulterblatt) $\rightarrow$ `E_front_thighL` (Oberarm) $\rightarrow$ `E_front_shinL` (Unterarm) $\rightarrow$ `E_front_footL` (Vorderfußwurzel) $\rightarrow$ `E_front_toeL` (Huf).
+   * Rechts: `E_shoulderR` $\rightarrow$ `E_front_thighR` $\rightarrow$ `E_front_shinR` $\rightarrow$ `E_front_footR` $\rightarrow$ `E_front_toeR`.
+4. **Hinterbeine & Becken (10 Knochen):**
+   * Links: `E_pelvisL` (Hüfte) $\rightarrow$ `E_thighL` (Oberschenkel) $\rightarrow$ `E_shinL` (Unterschenkel) $\rightarrow$ `E_footL` (Sprunggelenk) $\rightarrow$ `E_toeL` (Huf).
+   * Rechts: `E_pelvisR` $\rightarrow$ `E_thighR` $\rightarrow$ `E_shinR` $\rightarrow$ `E_footR` $\rightarrow$ `E_toeR`.
+5. **Schweif / Caudalwirbel (4 Knochen):**
+   * `E_spine003` $\rightarrow$ `E_spine002` $\rightarrow$ `E_spine001` $\rightarrow$ `E_spine` (Schweifspitze).
+6. **Brustregion (2 Knochen):**
+   * `E_breastL`, `E_breastR` (vordere Brustwand).
+
+---
+
+### 9.2 Die Funktionen des Analyse-Tools
+
+Das Seitenpanel gliedert sich in 5 interaktive Spezialbereiche:
+
+#### 1. 🌳 Hierarchie-Baum (Tree View)
+* **Interaktiver Klappbaum:** Zeigt alle 34 Knochen mit Tiefe, Icons, technischen und anatomischen Bezeichnungen an.
+* **Körperschnellfilter & Live-Suche:** Filterchips für `Wirbelsäule`, `Vorderbeine`, `Hinterbeine`, `Kopf & Hals`, `Schweif` sowie Volltextsuche.
+* **3D-Raycasting-Auswahl:** Klick auf einen Knochen im Baum oder direkt auf eine Gelenkkugel im 3D-View hebt den Knochen hervor und öffnet die Detail-Steuerung.
+
+#### 2. 🎛️ Knochen-FK & Pose-Editor
+* **Live-Telemetrie:** Exakte Weltposition $(X, Y, Z)$, Höhe über dem Boden ($Y$), Rotationswinkel und Hierarchiedaten.
+* **Freies Posing & Überlagerung:**
+  * **Additiver Offset:** Überlagert flüssig die laufende Gangart (z. B. Kopf im vollen Galopp anheben oder zur Seite neigen).
+  * **Absolutes Posing:** Fixiert die Knochenwinkel framegenau.
+* **3-Achsen-Rotation:** Slider für Neigung (Pitch $X$), Gieren (Yaw $Y$) und Rollen (Roll $Z$) von $-180^\circ$ bis $+180^\circ$.
+* **Positions-Offset & Skalierung:** Feine Justierung für jeden Knochen.
+* **Schnell-Posen (Presets):** *Stolzer Hals*, *Grasen*, *Schweif erhoben*, *Aufbäumen*.
+* **Kamerafokus:** Mit Klick auf `🎯 Fokus` schwenkt die Orbit-Kamera zentriert auf den ausgewählten Knochen.
+
+#### 3. ⏱️ Timeline & Playback
+* **Framegenauer Scrubber:** Schieberegler mit Live-Zeitanzeige (`0.45s / 1.20s`) und Frame-Index.
+* **Einzelschritt-Steuerung:** Frame-vor (`>`) und Frame-zurück (`<`) für mikroskopische Bewegungsanalysen.
+* **Geschwindigkeit:** Stufenlos von $0.05\times$ (Superzeitlupe) bis $2.5\times$ mit Schnellwahltasten.
+* **Überblendung:** Einstellbare Crossfade-Dauer für Gangartwechsel.
+
+#### 4. 📊 Biomechanik & Phasen-Diagramm
+* **Echtzeit-Schrittdiagramm (Gait Phase Diagram):** Ein kontinuierlich rollendes Diagramm visualisiert die Stütz- (Grün) und Schwungphasen (Blau) aller vier Hufe synchron.
+* **Gangart-Rhythmen:**
+  * *Walk (Schritt):* 4-Takt-Einzelfußung.
+  * *Trot (Trab):* 2-Takt-Diagonalsynchronisation (VL+HR vs. VR+HL).
+  * *Gallop (Galopp):* 3-Takt mit deutlicher Flug-/Schwebephase.
+* **Auto-Kalibrierung:** Ein-Klick-Fitting der Schwellwerte für Vorne und Hinten.
+
+#### 5. 👁️ 3D-Rigg- & Material-Ansicht
+* **SkeletonHelper:** Ein- und Ausblenden der 3D-Skelettlinien im Raum.
+* **Gelenk-Kugeln (Joint Markers):** 3D-Kugeln an allen 34 Gelenken mit Farbkennzeichnung.
+* **Lokales Koordinatensystem:** Achsenkreuz (Rot=$X$, Grün=$Y$, Blau=$Z$) direkt am aktiven Knochen.
+* **Röntgenmodus (X-Ray):** Schaltet das Pferdemodell auf $30\%$ Transparenz, sodass das Skelett im laufenden Körper vollständig sichtbar ist.
+* **Wireframe-Modus:** Zur visuellen Kontrolle der Vertex-Deformation und Skinning-Gewichte.
+* **Textur-Switcher:** Umschalten zwischen *Brown*, *Dark Brown*, *Black*, *Grey* und *White*.
+* **Kamera-Presets:** *Seitenansicht (Sagittal)*, *Frontalansicht*, *Draufsicht*, *Isometrisch*, *Huf-Nahaufnahme*.

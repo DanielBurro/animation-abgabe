@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import './style.css';
 import { GroundContactDetector } from './groundContact.js';
+import { SkeletonAnalyzer } from './skeletonAnalyzer.js';
 
 // 1. Szene, Kamera & Renderer aufsetzen ────────────────────────
 const scene = new THREE.Scene();
@@ -45,11 +45,12 @@ const horseTexture = textureLoader.load('/textures/Brown.png');
 horseTexture.flipY = false; 
 horseTexture.colorSpace = THREE.SRGBColorSpace;
 
-// ── 3.1 Animations-, Kontakt- und GUI-Setup ───────────────────
+// ── 3.1 Animations-, Kontakt- und Studio-Setup ────────────────
 const timer = new THREE.Timer();
 let mixer;
 let horse;
 let contactDetector;
+let skeletonAnalyzer;
 const actions = {};
 let activeAction;
 
@@ -60,17 +61,12 @@ const settings = {
   paused: false,
 
   // ── Bodenkontakt & Schwellwerte ──
-  // Vorne liegen die Toe-Knochen bei Bodenkontakt bei ca. 0.135 - 0.142 m
-  // Hinten liegen die Toe-Knochen bei Bodenkontakt bei ca. 0.241 - 0.254 m
   thresholdFront: 0.155,
   thresholdBack: 0.265,
   showGroundRings: true,
   showHeightLines: true,
-  showBoneMarkers: false,
-  showHUD: true
+  showBoneMarkers: false
 };
-
-const gui = new GUI({ title: 'Pferde-Steuerung' });
 
 // Weicher Übergang zwischen Animationen
 function transitionTo(nextName) {
@@ -83,7 +79,14 @@ function transitionTo(nextName) {
 
   activeAction.crossFadeTo(nextAction, settings.crossfadeDuration, true);
   activeAction = nextAction;
+  settings.currentAnimation = nextName;
 }
+
+// 3.2 Kamerasteuerung ──────────────────────────────────────────
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.7, 0);
+controls.enableDamping = true;
+controls.update();
 
 // 4. GLB-Modell laden ──────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
@@ -126,60 +129,23 @@ gltfLoader.load(
       settings.currentAnimation = animNames[0];
       activeAction = actions[settings.currentAnimation];
       activeAction.play();
-
-      // GUI: Gangart & Tempo
-      const animFolder = gui.addFolder('Animation');
-      animFolder.add(settings, 'currentAnimation', animNames)
-        .name('Gangart')
-        .onChange((name) => transitionTo(name));
-
-      animFolder.add(settings, 'crossfadeDuration', 0.1, 2.0, 0.1)
-        .name('Übergang (s)');
-
-      animFolder.add(settings, 'speed', 0.1, 2.5, 0.1)
-        .name('Tempo')
-        .onChange((val) => {
-          if (mixer) mixer.timeScale = settings.paused ? 0 : val;
-        });
-
-      animFolder.add(settings, 'paused')
-        .name('Pausieren')
-        .onChange((isPaused) => {
-          if (mixer) mixer.timeScale = isPaused ? 0 : settings.speed;
-        });
-
-      animFolder.open();
-
-      // GUI: Hufkontakt & Schwellwerte
-      const contactFolder = gui.addFolder('Hufkontakt & Schwellwerte');
-      contactFolder.add(settings, 'thresholdFront', 0.10, 0.22, 0.002)
-        .name('Schwelle Vorne (m)')
-        .onChange((val) => contactDetector.setThresholds(val, settings.thresholdBack));
-
-      contactFolder.add(settings, 'thresholdBack', 0.20, 0.32, 0.002)
-        .name('Schwelle Hinten (m)')
-        .onChange((val) => contactDetector.setThresholds(settings.thresholdFront, val));
-
-      contactFolder.add(settings, 'showGroundRings')
-        .name('3D Boden-Ringe')
-        .onChange((v) => contactDetector.setHelpersVisibility(v, settings.showHeightLines, settings.showBoneMarkers));
-
-      contactFolder.add(settings, 'showHeightLines')
-        .name('Höhen-Linien')
-        .onChange((v) => contactDetector.setHelpersVisibility(settings.showGroundRings, v, settings.showBoneMarkers));
-
-      contactFolder.add(settings, 'showBoneMarkers')
-        .name('Knochen-Kugeln')
-        .onChange((v) => contactDetector.setHelpersVisibility(settings.showGroundRings, settings.showHeightLines, v));
-
-      contactFolder.add(settings, 'showHUD')
-        .name('HUD-Anzeige')
-        .onChange((v) => contactDetector.toggleHUD(v));
-
-      contactFolder.open();
     } else {
       console.warn('Keine Animationen in der GLB-Datei gefunden.');
     }
+
+    // ── 4.3 Umfassendes Skelett- & Rigg-Analyse-Studio initialisieren ──
+    skeletonAnalyzer = new SkeletonAnalyzer({
+      horse,
+      scene,
+      camera,
+      renderer,
+      controls,
+      mixer,
+      actions,
+      settings,
+      contactDetector,
+      transitionTo
+    });
   },
   (progress) => {
     console.log(`Ladefortschritt: ${(progress.loaded / progress.total) * 100}%`);
@@ -188,12 +154,6 @@ gltfLoader.load(
     console.error('Fehler beim Laden des Modells:', error);
   }
 );
-
-// 4.3 Kamerasteuerung ──────────────────────────────────────────
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.7, 0);
-controls.enableDamping = true;
-controls.update();
 
 // 5. Render-Schleife ───────────────────────────────────────────
 function animate(timestamp) {
@@ -213,7 +173,20 @@ function animate(timestamp) {
 
   // Bodenkontakt-Erkennung und Anzeige aktualisieren
   if (contactDetector) {
-    contactDetector.update(delta, settings.currentAnimation);
+    try {
+      contactDetector.update(delta, settings.currentAnimation);
+    } catch (err) {
+      console.error('[GroundContactDetector] Update-Fehler:', err);
+    }
+  }
+
+  // Skelett-Studio & Posing-Engine aktualisieren
+  if (skeletonAnalyzer) {
+    try {
+      skeletonAnalyzer.update(delta);
+    } catch (err) {
+      console.error('[SkeletonAnalyzer] Update-Fehler:', err);
+    }
   }
 
   controls.update();
