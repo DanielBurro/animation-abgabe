@@ -320,6 +320,7 @@ Das Seitenpanel gliedert sich in 5 interaktive Spezialbereiche:
 
 #### 4. 📊 Biomechanik & Phasen-Diagramm
 * **Echtzeit-Schrittdiagramm (Gait Phase Diagram):** Ein kontinuierlich rollendes Diagramm visualisiert die Stütz- (Grün) und Schwungphasen (Blau) aller vier Hufe synchron.
+* **4-Huf-Telemetrie mit dynamischen Pegelbalken:** Visuelle Balkenanzeigen für alle vier Hufe (VL, VR, HL, HR). Der animierte Füllstand spiegelt kontinuierlich die Welt-Höhe des Zehenknochens ($Y$) wider, während eine präzise Schwellwertmarkierung (Notch) die Grenze zwischen Bodenkontakt (`BODEN`, Grün) und Flugphase (`LUFT`, Blau) exakt darstellt.
 * **Gangart-Rhythmen:**
   * *Walk (Schritt):* 4-Takt-Einzelfußung.
   * *Trot (Trab):* 2-Takt-Diagonalsynchronisation (VL+HR vs. VR+HL).

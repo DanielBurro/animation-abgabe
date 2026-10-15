@@ -783,6 +783,10 @@ export class SkeletonAnalyzer {
                   <span>3D Bodenringe & Höhenlinien</span>
                   <input type="checkbox" id="chk-show-ground-rings" checked />
                 </label>
+                <label class="toggle-row">
+                  <span>2D Hufkontakt-HUD (Overlay)</span>
+                  <input type="checkbox" id="chk-show-hud" />
+                </label>
               </div>
             </div>
 
@@ -1063,6 +1067,15 @@ export class SkeletonAnalyzer {
         this.contactDetector.setHelpersVisibility(checked, checked, this.settings.showBoneMarkers);
       }
     };
+
+    const chkHud = document.getElementById('chk-show-hud');
+    if (chkHud) {
+      chkHud.onchange = (e) => {
+        if (this.contactDetector) {
+          this.contactDetector.toggleHUD(e.target.checked);
+        }
+      };
+    }
 
     // Mesh-Modus Umschalter
     const meshBtns = this.sidebar.querySelectorAll('#mesh-mode-selector .seg-btn');
@@ -1567,25 +1580,110 @@ export class SkeletonAnalyzer {
     const container = document.getElementById('biomech-hoof-list');
     if (!container) return;
 
-    container.innerHTML = '';
+    const maxBarHeight = 0.5;
+
+    // Falls die 4 Huf-Karten noch nicht existieren, initial erzeugen
+    if (container.children.length !== hooves.length) {
+      container.innerHTML = '';
+      hooves.forEach((hoof) => {
+        const card = document.createElement('div');
+        card.id = `biomech-hoof-${hoof.id}`;
+        card.className = 'biomech-hoof-row';
+        card.title = `Klick, um ${hoof.name} (${hoof.boneName}) auszuwählen`;
+        card.onclick = () => {
+          if (hoof.boneName) {
+            this.selectBone(hoof.boneName, true);
+          }
+        };
+
+        card.innerHTML = `
+          <div class="hoof-row-header">
+            <div class="hoof-row-left">
+              <strong class="hoof-id-badge">${hoof.id}</strong>
+              <span class="hoof-full-name">${hoof.name}</span>
+            </div>
+            <div class="hoof-row-right">
+              <span class="hoof-thresh-hint">Schwelle: <strong class="hoof-thresh-val">${hoof.threshold.toFixed(3)} m</strong></span>
+              <span class="status-badge">LUFT</span>
+            </div>
+          </div>
+          <div class="hoof-row-meter">
+            <span class="hoof-height-val">0.000 m</span>
+            <div class="meter-bar">
+              <div class="meter-fill"></div>
+              <div class="meter-threshold"></div>
+            </div>
+            <span class="meter-max-label">0.5m</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // 60-FPS Live-Update aller Huf-Pegelbalken & Schwellwert-Markierungen
     hooves.forEach((hoof) => {
+      const card = document.getElementById(`biomech-hoof-${hoof.id}`);
+      if (!card) return;
+
       const isGrounded = hoof.isGrounded;
-      const card = document.createElement('div');
-      card.className = `biomech-hoof-row ${isGrounded ? 'ground' : 'air'}`;
-      card.innerHTML = `
-        <div class="hoof-row-left">
-          <strong class="hoof-id-badge">${hoof.id}</strong>
-          <span class="hoof-full-name">${hoof.name}</span>
-        </div>
-        <div class="hoof-row-center">
-          <span class="hoof-height-val">${hoof.currentY.toFixed(3)} m</span>
-          <span class="hoof-thresh-hint">Schwelle: ${hoof.threshold.toFixed(3)}m</span>
-        </div>
-        <span class="status-badge ${isGrounded ? 'badge-ground' : 'badge-air'}">
-          ${isGrounded ? 'BODEN' : 'LUFT'}
-        </span>
-      `;
-      container.appendChild(card);
+      const percent = Math.min(100, Math.max(0, (hoof.currentY / maxBarHeight) * 100));
+      const threshPercent = Math.min(100, Math.max(0, (hoof.threshold / maxBarHeight) * 100));
+
+      // Visueller Zustand der Karte
+      if (isGrounded) {
+        if (!card.classList.contains('ground')) {
+          card.classList.add('ground');
+          card.classList.remove('air');
+        }
+      } else {
+        if (!card.classList.contains('air')) {
+          card.classList.add('air');
+          card.classList.remove('ground');
+        }
+      }
+
+      // Status-Badge
+      const badge = card.querySelector('.status-badge');
+      if (badge) {
+        const text = isGrounded ? 'BODEN' : 'LUFT';
+        if (badge.innerText !== text) {
+          badge.innerText = text;
+          badge.className = `status-badge ${isGrounded ? 'badge-ground' : 'badge-air'}`;
+        }
+      }
+
+      // Live Zehen-Höhe (Y)
+      const heightVal = card.querySelector('.hoof-height-val');
+      if (heightVal) {
+        heightVal.innerText = `${hoof.currentY.toFixed(3)} m`;
+      }
+
+      // Schwellwert-Anzeige
+      const threshVal = card.querySelector('.hoof-thresh-val');
+      if (threshVal) {
+        threshVal.innerText = `${hoof.threshold.toFixed(3)} m`;
+      }
+
+      // Füllbalken (abhängig von Toe-Höhe)
+      const fill = card.querySelector('.meter-fill');
+      if (fill) {
+        fill.style.width = `${percent.toFixed(1)}%`;
+        const fillClass = `meter-fill ${isGrounded ? 'fill-ground' : 'fill-air'}`;
+        if (fill.className !== fillClass) {
+          fill.className = fillClass;
+        }
+      }
+
+      // Schwellwert-Marker auf dem Balken
+      const threshMarker = card.querySelector('.meter-threshold');
+      if (threshMarker) {
+        threshMarker.style.left = `${threshPercent.toFixed(1)}%`;
+      }
+
+      const meterBar = card.querySelector('.meter-bar');
+      if (meterBar) {
+        meterBar.title = `Höhe: ${hoof.currentY.toFixed(3)} m | Schwelle: ${hoof.threshold.toFixed(3)} m`;
+      }
     });
   }
 
