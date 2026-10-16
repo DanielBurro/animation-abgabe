@@ -26,10 +26,33 @@ export class SkeletonAnalyzer {
     // 1. Standard-HUD Element mit Ausschlagbalken initialisieren
     this._initHUD();
 
-    // 2. 3D-Skeletthelfer (optional über GUI zuschaltbar)
+    // 2. 3D-Skeletthelfer & Gelenkpunkte
     this.skeletonHelper = new THREE.SkeletonHelper(this.horse);
     this.skeletonHelper.visible = false;
     this.scene.add(this.skeletonHelper);
+
+    this.jointGroup = new THREE.Group();
+    this.jointGroup.name = 'JointMarkers';
+    this.jointMeshes = [];
+
+    const jointGeo = new THREE.SphereGeometry(0.024, 12, 12);
+    const jointMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false
+    });
+
+    this.horse.traverse((child) => {
+      if (child.isBone) {
+        const sphere = new THREE.Mesh(jointGeo, jointMat);
+        this.jointGroup.add(sphere);
+        this.jointMeshes.push({ bone: child, sphere });
+      }
+    });
+
+    this.jointGroup.visible = false;
+    this.scene.add(this.jointGroup);
 
     // 3. Standard lil-gui Bedienpanel
     this._initGUI();
@@ -215,14 +238,22 @@ export class SkeletonAnalyzer {
       }, 'kalibrieren')
       .name('Auto-Kalibrieren');
 
+    bioFolder.close(); // Standardmäßig eingeklappt
+
     // ── Ansicht & Helfer ──────────────────────────────────────
     const viewFolder = this.gui.addFolder('Ansicht');
     viewFolder
       .add(this.settings, 'showGroundRings')
-      .name('Bodenringe & Linien')
+      .name('Bodenpunkte (Ringe)')
       .onChange((val) => {
-        this.settings.showHeightLines = val;
-        if (this.contactDetector) this.contactDetector.setHelpersVisibility(val, val, false);
+        if (this.contactDetector) this.contactDetector.setHelpersVisibility(val, undefined, undefined);
+      });
+
+    viewFolder
+      .add(this.settings, 'showHeightLines')
+      .name('Striche zum Huf')
+      .onChange((val) => {
+        if (this.contactDetector) this.contactDetector.setHelpersVisibility(undefined, val, undefined);
       });
 
     viewFolder
@@ -230,6 +261,13 @@ export class SkeletonAnalyzer {
       .name('Skelett (Bones)')
       .onChange((val) => {
         this.skeletonHelper.visible = val;
+      });
+
+    viewFolder
+      .add({ gelenkpunkte: false }, 'gelenkpunkte')
+      .name('Gelenkpunkte')
+      .onChange((val) => {
+        this.jointGroup.visible = val;
       });
 
     viewFolder
@@ -257,12 +295,22 @@ export class SkeletonAnalyzer {
           });
         });
       });
+
+    viewFolder.close(); // Standardmäßig eingeklappt
   }
 
   /**
    * Wird jeden Frame aus der Render-Schleife aufgerufen
    */
   update(delta) {
+    if (this.jointGroup && this.jointGroup.visible) {
+      const tempVec = new THREE.Vector3();
+      this.jointMeshes.forEach(({ bone, sphere }) => {
+        bone.getWorldPosition(tempVec);
+        sphere.position.copy(tempVec);
+      });
+    }
+
     this._updateHUD();
   }
 

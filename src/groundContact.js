@@ -210,9 +210,9 @@ export class GroundContactDetector {
    * Setzt die Sichtbarkeit der 3D-Helfer
    */
   setHelpersVisibility(groundRings, heightLines, boneMarkers) {
-    this.showGroundRings = groundRings;
-    this.showHeightLines = heightLines;
-    this.showBoneMarkers = boneMarkers;
+    if (typeof groundRings === 'boolean') this.showGroundRings = groundRings;
+    if (typeof heightLines === 'boolean') this.showHeightLines = heightLines;
+    if (typeof boneMarkers === 'boolean') this.showBoneMarkers = boneMarkers;
 
     this.hoofList.forEach((hoof) => {
       const vis = this.visuals[hoof.id];

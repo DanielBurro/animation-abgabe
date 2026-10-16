@@ -10,7 +10,6 @@ canvas {
   display: block;
 }
 
-/* ── Standard #hud links oben ───────────────────────────────────── */
 #hud {
   position: fixed;
   top: 10px;
