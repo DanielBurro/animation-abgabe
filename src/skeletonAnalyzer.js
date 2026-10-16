@@ -21,6 +21,7 @@ export class SkeletonAnalyzer {
     this.actions = context.actions;
     this.settings = context.settings;
     this.contactDetector = context.contactDetector;
+    this.dustCloud = context.dustCloud;
     this.transitionTo = context.transitionTo;
 
     // 1. Standard-HUD Element mit Ausschlagbalken initialisieren
@@ -136,8 +137,10 @@ export class SkeletonAnalyzer {
 
       <div class="hud-section-title">TELEMETRIE</div>
       <div class="hud-line"><span>Schwelle Vorne</span><span id="hud-thresh-front">0.155 m</span></div>
-      <div class="hud-line"><span>Schwelle Hinten</span><span id="hud-thresh-back">0.265 m</span></div>
+      <div class="hud-line"><span>Schwelle Hinten</span><span id="hud-thresh-back">0.270 m</span></div>
       <div class="hud-line-small"><span>Letzter Kontakt</span><span id="hud-last-impact">-</span></div>
+      <div class="hud-line-small"><span>Lauf-Tempo</span><span id="hud-horse-speed">0.0 m/s</span></div>
+      <div class="hud-line-small"><span>Staubpartikel</span><span id="hud-dust-count">0 aktiv</span></div>
     `;
 
     this.dom = {
@@ -146,6 +149,8 @@ export class SkeletonAnalyzer {
       threshFront: document.getElementById('hud-thresh-front'),
       threshBack: document.getElementById('hud-thresh-back'),
       lastImpact: document.getElementById('hud-last-impact'),
+      horseSpeed: document.getElementById('hud-horse-speed'),
+      dustCount: document.getElementById('hud-dust-count'),
       hooves: {
         FL: {
           val: document.getElementById('hud-val-FL'),
@@ -183,15 +188,19 @@ export class SkeletonAnalyzer {
 
     // ── Animation & Playback ──────────────────────────────────
     const animFolder = this.gui.addFolder('Animation');
-    const clipNames = Object.keys(this.actions || {});
-    if (clipNames.length > 0) {
-      animFolder
-        .add(this.settings, 'currentAnimation', clipNames)
-        .name('Gangart')
-        .onChange((name) => {
-          if (this.transitionTo) this.transitionTo(name);
-        });
-    }
+    const gaitDropdown = {
+      'Rest': 'Rest',
+      'Walk': 'Walk',
+      'Trott': 'Trot',
+      'Galopp': 'Gallop'
+    };
+
+    animFolder
+      .add(this.settings, 'currentAnimation', gaitDropdown)
+      .name('Gangart')
+      .onChange((name) => {
+        if (this.transitionTo) this.transitionTo(name);
+      });
 
     animFolder
       .add(this.settings, 'paused')
@@ -231,8 +240,8 @@ export class SkeletonAnalyzer {
       .add({
         kalibrieren: () => {
           this.settings.thresholdFront = 0.155;
-          this.settings.thresholdBack = 0.265;
-          if (this.contactDetector) this.contactDetector.setThresholds(0.155, 0.265);
+          this.settings.thresholdBack = 0.270;
+          if (this.contactDetector) this.contactDetector.setThresholds(0.155, 0.270);
           this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
         }
       }, 'kalibrieren')
@@ -297,6 +306,64 @@ export class SkeletonAnalyzer {
       });
 
     viewFolder.close(); // Standardmäßig eingeklappt
+
+    // ── Staubwolke (Partikelsystem) ───────────────────────────
+    if (this.dustCloud) {
+      const dustFolder = this.gui.addFolder('Partikel');
+
+      dustFolder
+        .add(this.dustCloud, 'enabled')
+        .name('Aktiviert');
+
+      dustFolder
+        .add(this.dustCloud, 'baseCount', 5, 80, 1)
+        .name('Partikelanzahl');
+
+      dustFolder
+        .add(this.dustCloud, 'radialSpeed', 0.2, 4.0, 0.1)
+        .name('Expansionskraft');
+
+      dustFolder
+        .add(this.dustCloud, 'upwardSpeed', 0.1, 2.5, 0.05)
+        .name('Auftrieb (nach oben)');
+
+      dustFolder
+        .add(this.dustCloud, 'backwardKick', 0.0, 1.5, 0.05)
+        .name('Schub nach hinten');
+
+      dustFolder
+        .add(this.dustCloud, 'drag', 0.2, 8.0, 0.1)
+        .name('Luftwiderstand');
+
+      dustFolder
+        .add(this.dustCloud, 'gravity', 0.5, 15.0, 0.5)
+        .name('Schwerkraft');
+
+      dustFolder
+        .add(this.dustCloud, 'lifetime', 0.1, 2.5, 0.05)
+        .name('Lebensdauer (s)');
+
+      dustFolder
+        .add(this.dustCloud, 'particleSize', 0.02, 0.25, 0.01)
+        .name('Partikelgröße');
+
+      dustFolder
+        .addColor(this.dustCloud, 'colorHex')
+        .name('Staubfarbe')
+        .onChange((hex) => {
+          this.dustCloud.setColor(hex);
+        });
+
+      dustFolder
+        .add({
+          testCloud: () => {
+            this.dustCloud.emitTestCloud();
+          }
+        }, 'testCloud')
+        .name('💨 Test-Wolke auslösen');
+
+      dustFolder.close(); // Standardmäßig eingeklappt
+    }
   }
 
   /**
@@ -325,7 +392,15 @@ export class SkeletonAnalyzer {
     const clipDuration = action ? (action.getClip().duration || 1.0) : 1.0;
     const clipTime = action ? (action.time % clipDuration) : 0.0;
 
-    if (this.dom.gait) this.dom.gait.textContent = this.settings.currentAnimation || '-';
+    const gaitLabels = {
+      Rest: 'Rest',
+      Walk: 'Walk',
+      Trot: 'Trott',
+      Trott: 'Trott',
+      Gallop: 'Galopp',
+      Galopp: 'Galopp'
+    };
+    if (this.dom.gait) this.dom.gait.textContent = gaitLabels[this.settings.currentAnimation] || this.settings.currentAnimation || '-';
     if (this.dom.time) this.dom.time.textContent = `${clipTime.toFixed(3)} / ${clipDuration.toFixed(3)} s`;
     if (this.dom.threshFront) this.dom.threshFront.textContent = `${this.settings.thresholdFront.toFixed(3)} m`;
     if (this.dom.threshBack) this.dom.threshBack.textContent = `${this.settings.thresholdBack.toFixed(3)} m`;
@@ -339,6 +414,15 @@ export class SkeletonAnalyzer {
       }
     }
 
+    if (this.dom.horseSpeed && this.dustCloud) {
+      const speed = this.dustCloud.getHorseSpeed();
+      this.dom.horseSpeed.textContent = `${speed.toFixed(1)} m/s (${(speed * 3.6).toFixed(0)} km/h)`;
+    }
+
+    if (this.dom.dustCount && this.dustCloud) {
+      this.dom.dustCount.textContent = `${this.dustCloud.activeCount} aktiv`;
+    }
+
     // 60-FPS Update der 4 Huf-Ausschlagbalken & Schwellwertkerben
     hooves.forEach((h) => {
       const hoofDom = this.dom.hooves[h.id];
@@ -349,16 +433,22 @@ export class SkeletonAnalyzer {
       const percent = Math.min(100, Math.max(0, (h.currentY / maxH) * 100));
       const threshPercent = Math.min(100, Math.max(0, (h.threshold / maxH) * 100));
 
-      hoofDom.val.textContent = `${h.currentY.toFixed(3)} m`;
-      hoofDom.status.textContent = isGrounded ? '[BODEN]' : '[LUFT]';
-      hoofDom.status.className = isGrounded ? 'hud-status-ground' : 'hud-status-air';
+      if (hoofDom.val) hoofDom.val.textContent = `${h.currentY.toFixed(3)} m`;
+      if (hoofDom.status) {
+        hoofDom.status.textContent = isGrounded ? '[BODEN]' : '[LUFT]';
+        hoofDom.status.className = isGrounded ? 'hud-status-ground' : 'hud-status-air';
+      }
 
       // Ausschlagbalken: Breite folgt kontinuierlich der Hufhöhe
-      hoofDom.fill.style.width = `${percent.toFixed(1)}%`;
-      hoofDom.fill.className = isGrounded ? 'hud-meter-fill is-ground' : 'hud-meter-fill';
+      if (hoofDom.fill) {
+        hoofDom.fill.style.width = `${percent.toFixed(1)}%`;
+        hoofDom.fill.className = isGrounded ? 'hud-meter-fill is-ground' : 'hud-meter-fill';
+      }
 
       // Schwellwertkerbe: Markiert exakt die Grenze Boden/Luft
-      hoofDom.notch.style.left = `${threshPercent.toFixed(1)}%`;
+      if (hoofDom.notch) {
+        hoofDom.notch.style.left = `${threshPercent.toFixed(1)}%`;
+      }
     });
   }
 }

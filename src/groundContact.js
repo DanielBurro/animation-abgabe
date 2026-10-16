@@ -28,7 +28,7 @@ export class GroundContactDetector {
     // Front Toes liegen bei Bodenkontakt bei ca. 0.135 - 0.142 m
     // Rear Toes liegen bei Bodenkontakt bei ca. 0.241 - 0.254 m
     this.thresholdFront = options.thresholdFront ?? 0.155;
-    this.thresholdBack = options.thresholdBack ?? 0.265;
+    this.thresholdBack = options.thresholdBack ?? 0.270;
 
     // Callbacks für Events (z. B. für spätere Erweiterungen wie Aufprall-Effekte)
     this.impactListeners = [];
@@ -38,9 +38,9 @@ export class GroundContactDetector {
     this.hooves = {};
     this.hoofList = [];
 
-    // 3D Visualisierungs-Objekte
-    this.showGroundRings = options.showGroundRings ?? true;
-    this.showHeightLines = options.showHeightLines ?? true;
+    // 3D Visualisierungs-Objekte (standardmäßig ausgeschaltet)
+    this.showGroundRings = options.showGroundRings ?? false;
+    this.showHeightLines = options.showHeightLines ?? false;
     this.showBoneMarkers = options.showBoneMarkers ?? false;
     this.hudVisible = options.showHUD ?? false;
 
@@ -105,6 +105,7 @@ export class GroundContactDetector {
         depthWrite: false
       });
       const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.visible = this.showGroundRings;
 
       // Innere gefüllte Scheibe bei Kontakt
       const discGeo = new THREE.CircleGeometry(0.04, 24);
@@ -128,6 +129,7 @@ export class GroundContactDetector {
         opacity: 0.6
       });
       const line = new THREE.Line(lineGeo, lineMat);
+      line.visible = this.showHeightLines;
 
       // 3. Knochen-Kugel-Marker
       const sphereGeo = new THREE.SphereGeometry(0.025, 16, 16);
@@ -197,7 +199,7 @@ export class GroundContactDetector {
 
       if (this.domElements.threshNotches) {
         const frontPct = `${Math.min(100, Math.max(0, (this.thresholdFront / 0.5) * 100)).toFixed(1)}%`;
-        const backPct = `${Math.min(100, Math.max(0, (this.thresholdBack / 0.5) * 100)).toFixed(1)}%`;
+        const backPct = `${Math.min(100, Math.max(0, (this.thresholdBack / 0.65) * 100)).toFixed(1)}%`;
         if (this.domElements.threshNotches.FL) this.domElements.threshNotches.FL.style.left = frontPct;
         if (this.domElements.threshNotches.FR) this.domElements.threshNotches.FR.style.left = frontPct;
         if (this.domElements.threshNotches.HL) this.domElements.threshNotches.HL.style.left = backPct;
@@ -273,8 +275,9 @@ export class GroundContactDetector {
         // Intensitätsfaktor je nach Gangart
         let intensity = 1.0;
         if (currentGait === 'Walk') intensity = 0.5;
-        else if (currentGait === 'Trot') intensity = 1.0;
-        else if (currentGait === 'Gallop') intensity = 2.0;
+        else if (currentGait === 'Trot' || currentGait === 'Trott') intensity = 1.0;
+        else if (currentGait === 'Gallop' || currentGait === 'Galopp') intensity = 2.0;
+        else if (currentGait === 'Rest') intensity = 0.0;
 
         const impactEvent = {
           hoof: hoof.id,

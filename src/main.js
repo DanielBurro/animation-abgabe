@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
 import { GroundContactDetector } from './groundContact.js';
 import { SkeletonAnalyzer } from './skeletonAnalyzer.js';
+import { DustCloud } from './dustCloud.js';
 
 // 1. Szene, Kamera & Renderer aufsetzen ────────────────────────
 const scene = new THREE.Scene();
@@ -51,6 +52,7 @@ let mixer;
 let horse;
 let contactDetector;
 let skeletonAnalyzer;
+let dustCloud;
 const actions = {};
 let activeAction;
 
@@ -62,24 +64,34 @@ const settings = {
 
   // ── Bodenkontakt & Schwellwerte ──
   thresholdFront: 0.155,
-  thresholdBack: 0.265,
-  showGroundRings: true,
-  showHeightLines: true,
+  thresholdBack: 0.270,
+  showGroundRings: false,
+  showHeightLines: false,
   showBoneMarkers: false
 };
 
-// Weicher Übergang zwischen Animationen
+// Weicher, stabiler Übergang zwischen Animationen (ohne Time-Warping-Freeze)
 function transitionTo(nextName) {
-  const nextAction = actions[nextName];
+  const key = (nextName === 'Trott') ? 'Trot' : (nextName === 'Galopp') ? 'Gallop' : nextName;
+  const nextAction = actions[key];
   if (!nextAction || nextAction === activeAction) return;
 
-  nextAction.reset();
-  nextAction.enabled = true;
-  nextAction.play();
+  const duration = settings.crossfadeDuration ?? 0.4;
 
-  activeAction.crossFadeTo(nextAction, settings.crossfadeDuration, true);
+  // Neue Aktion sauber vorbereiten und einblenden
+  nextAction.enabled = true;
+  nextAction.setEffectiveTimeScale(settings.paused ? 0 : settings.speed);
+  nextAction.setEffectiveWeight(1.0);
+  nextAction.time = 0;
+
+  if (activeAction) {
+    activeAction.fadeOut(duration);
+    nextAction.fadeIn(duration);
+  }
+
+  nextAction.play();
   activeAction = nextAction;
-  settings.currentAnimation = nextName;
+  settings.currentAnimation = key;
 }
 
 // 3.2 Kamerasteuerung ──────────────────────────────────────────
@@ -115,19 +127,48 @@ gltfLoader.load(
       showBoneMarkers: settings.showBoneMarkers
     });
 
+    // ── 4.1.1 Staubwolken-Simulation initialisieren & an Auftritt koppeln ──
+    dustCloud = new DustCloud(scene, {
+      horse: horse,
+      settings: settings,
+      enabled: true,
+      baseCount: 32,
+      radialSpeed: 1.1,
+      upwardSpeed: 0.85,
+      backwardKick: 0.48,
+      drag: 2.6,
+      gravity: 6.5,
+      lifetime: 0.4,
+      particleSize: 0.09,
+      color: '#c4a882'
+    });
+
+    // Bei jedem Huf-Bodenkontakt ringförmige Staubwolke auslösen
+    contactDetector.onImpact((impactEvent) => {
+      dustCloud.emit(impactEvent);
+    });
+
     // ── 4.2 Animationen einrichten ─────────────────────────────────
     if (gltf.animations && gltf.animations.length > 0) {
       mixer = new THREE.AnimationMixer(horse);
 
       const animNames = [];
       gltf.animations.forEach((clip) => {
+        // Standbild/Rest mit Dauer 0 auf 1.0s setzen, um Division durch 0 im Mixer zu verhindern
+        if (clip.duration === 0) clip.duration = 1.0;
         actions[clip.name] = mixer.clipAction(clip);
         animNames.push(clip.name);
       });
 
-      // Erste gefundene Animation abspielen
-      settings.currentAnimation = animNames[0];
+      // Aliase für deutsche Schreibweisen
+      if (actions['Trot']) actions['Trott'] = actions['Trot'];
+      if (actions['Gallop']) actions['Galopp'] = actions['Gallop'];
+
+      // Start mit 'Rest' (oder erste Animation)
+      settings.currentAnimation = actions['Rest'] ? 'Rest' : (animNames[0] || 'Walk');
       activeAction = actions[settings.currentAnimation];
+      activeAction.setEffectiveTimeScale(settings.speed);
+      activeAction.setEffectiveWeight(1.0);
       activeAction.play();
     } else {
       console.warn('Keine Animationen in der GLB-Datei gefunden.');
@@ -144,6 +185,7 @@ gltfLoader.load(
       actions,
       settings,
       contactDetector,
+      dustCloud,
       transitionTo
     });
   },
@@ -186,6 +228,16 @@ function animate(timestamp) {
       skeletonAnalyzer.update(delta);
     } catch (err) {
       console.error('[SkeletonAnalyzer] Update-Fehler:', err);
+    }
+  }
+
+  // Staubwolken-Simulation aktualisieren
+  if (dustCloud) {
+    try {
+      const simDelta = settings.paused ? delta : delta * settings.speed;
+      dustCloud.update(simDelta);
+    } catch (err) {
+      console.error('[DustCloud] Update-Fehler:', err);
     }
   }
 
