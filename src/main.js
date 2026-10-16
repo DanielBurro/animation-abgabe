@@ -70,18 +70,28 @@ const settings = {
   showBoneMarkers: false
 };
 
-// Weicher Übergang zwischen Animationen
+// Weicher, stabiler Übergang zwischen Animationen (ohne Time-Warping-Freeze)
 function transitionTo(nextName) {
-  const nextAction = actions[nextName];
+  const key = (nextName === 'Trott') ? 'Trot' : (nextName === 'Galopp') ? 'Gallop' : nextName;
+  const nextAction = actions[key];
   if (!nextAction || nextAction === activeAction) return;
 
-  nextAction.reset();
-  nextAction.enabled = true;
-  nextAction.play();
+  const duration = settings.crossfadeDuration ?? 0.4;
 
-  activeAction.crossFadeTo(nextAction, settings.crossfadeDuration, true);
+  // Neue Aktion sauber vorbereiten und einblenden
+  nextAction.enabled = true;
+  nextAction.setEffectiveTimeScale(settings.paused ? 0 : settings.speed);
+  nextAction.setEffectiveWeight(1.0);
+  nextAction.time = 0;
+
+  if (activeAction) {
+    activeAction.fadeOut(duration);
+    nextAction.fadeIn(duration);
+  }
+
+  nextAction.play();
   activeAction = nextAction;
-  settings.currentAnimation = nextName;
+  settings.currentAnimation = key;
 }
 
 // 3.2 Kamerasteuerung ──────────────────────────────────────────
@@ -144,13 +154,21 @@ gltfLoader.load(
 
       const animNames = [];
       gltf.animations.forEach((clip) => {
+        // Standbild/Rest mit Dauer 0 auf 1.0s setzen, um Division durch 0 im Mixer zu verhindern
+        if (clip.duration === 0) clip.duration = 1.0;
         actions[clip.name] = mixer.clipAction(clip);
         animNames.push(clip.name);
       });
 
-      // Erste gefundene Animation abspielen
-      settings.currentAnimation = animNames[0];
+      // Aliase für deutsche Schreibweisen
+      if (actions['Trot']) actions['Trott'] = actions['Trot'];
+      if (actions['Gallop']) actions['Galopp'] = actions['Gallop'];
+
+      // Start mit 'Rest' (oder erste Animation)
+      settings.currentAnimation = actions['Rest'] ? 'Rest' : (animNames[0] || 'Walk');
       activeAction = actions[settings.currentAnimation];
+      activeAction.setEffectiveTimeScale(settings.speed);
+      activeAction.setEffectiveWeight(1.0);
       activeAction.play();
     } else {
       console.warn('Keine Animationen in der GLB-Datei gefunden.');

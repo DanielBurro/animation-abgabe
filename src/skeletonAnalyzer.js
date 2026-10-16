@@ -188,15 +188,19 @@ export class SkeletonAnalyzer {
 
     // ── Animation & Playback ──────────────────────────────────
     const animFolder = this.gui.addFolder('Animation');
-    const clipNames = Object.keys(this.actions || {});
-    if (clipNames.length > 0) {
-      animFolder
-        .add(this.settings, 'currentAnimation', clipNames)
-        .name('Gangart')
-        .onChange((name) => {
-          if (this.transitionTo) this.transitionTo(name);
-        });
-    }
+    const gaitDropdown = {
+      'Rest': 'Rest',
+      'Walk': 'Walk',
+      'Trott': 'Trot',
+      'Galopp': 'Gallop'
+    };
+
+    animFolder
+      .add(this.settings, 'currentAnimation', gaitDropdown)
+      .name('Gangart')
+      .onChange((name) => {
+        if (this.transitionTo) this.transitionTo(name);
+      });
 
     animFolder
       .add(this.settings, 'paused')
@@ -388,7 +392,15 @@ export class SkeletonAnalyzer {
     const clipDuration = action ? (action.getClip().duration || 1.0) : 1.0;
     const clipTime = action ? (action.time % clipDuration) : 0.0;
 
-    if (this.dom.gait) this.dom.gait.textContent = this.settings.currentAnimation || '-';
+    const gaitLabels = {
+      Rest: 'Rest',
+      Walk: 'Walk',
+      Trot: 'Trott',
+      Trott: 'Trott',
+      Gallop: 'Galopp',
+      Galopp: 'Galopp'
+    };
+    if (this.dom.gait) this.dom.gait.textContent = gaitLabels[this.settings.currentAnimation] || this.settings.currentAnimation || '-';
     if (this.dom.time) this.dom.time.textContent = `${clipTime.toFixed(3)} / ${clipDuration.toFixed(3)} s`;
     if (this.dom.threshFront) this.dom.threshFront.textContent = `${this.settings.thresholdFront.toFixed(3)} m`;
     if (this.dom.threshBack) this.dom.threshBack.textContent = `${this.settings.thresholdBack.toFixed(3)} m`;

@@ -273,8 +273,9 @@ export class GroundContactDetector {
         // Intensitätsfaktor je nach Gangart
         let intensity = 1.0;
         if (currentGait === 'Walk') intensity = 0.5;
-        else if (currentGait === 'Trot') intensity = 1.0;
-        else if (currentGait === 'Gallop') intensity = 2.0;
+        else if (currentGait === 'Trot' || currentGait === 'Trott') intensity = 1.0;
+        else if (currentGait === 'Gallop' || currentGait === 'Galopp') intensity = 2.0;
+        else if (currentGait === 'Rest') intensity = 0.0;
 
         const impactEvent = {
           hoof: hoof.id,

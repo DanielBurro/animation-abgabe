@@ -10,7 +10,9 @@ import * as THREE from 'three';
 export const GAIT_SPEEDS = {
   Walk: 1.6,
   Trot: 3.8,
+  Trott: 3.8,
   Gallop: 8.5,
+  Galopp: 8.5,
   Rest: 0.0
 };
 
