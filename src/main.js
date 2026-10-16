@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './style.css';
 import { GroundContactDetector } from './groundContact.js';
 import { SkeletonAnalyzer } from './skeletonAnalyzer.js';
+import { DustCloud } from './dustCloud.js';
 
 // 1. Szene, Kamera & Renderer aufsetzen ────────────────────────
 const scene = new THREE.Scene();
@@ -51,6 +52,7 @@ let mixer;
 let horse;
 let contactDetector;
 let skeletonAnalyzer;
+let dustCloud;
 const actions = {};
 let activeAction;
 
@@ -62,7 +64,7 @@ const settings = {
 
   // ── Bodenkontakt & Schwellwerte ──
   thresholdFront: 0.155,
-  thresholdBack: 0.265,
+  thresholdBack: 0.270,
   showGroundRings: true,
   showHeightLines: true,
   showBoneMarkers: false
@@ -115,6 +117,27 @@ gltfLoader.load(
       showBoneMarkers: settings.showBoneMarkers
     });
 
+    // ── 4.1.1 Staubwolken-Simulation initialisieren & an Auftritt koppeln ──
+    dustCloud = new DustCloud(scene, {
+      horse: horse,
+      settings: settings,
+      enabled: true,
+      baseCount: 32,
+      radialSpeed: 1.1,
+      upwardSpeed: 0.85,
+      backwardKick: 0.48,
+      drag: 2.6,
+      gravity: 6.5,
+      lifetime: 1.25,
+      particleSize: 0.09,
+      color: '#c4a882'
+    });
+
+    // Bei jedem Huf-Bodenkontakt ringförmige Staubwolke auslösen
+    contactDetector.onImpact((impactEvent) => {
+      dustCloud.emit(impactEvent);
+    });
+
     // ── 4.2 Animationen einrichten ─────────────────────────────────
     if (gltf.animations && gltf.animations.length > 0) {
       mixer = new THREE.AnimationMixer(horse);
@@ -144,6 +167,7 @@ gltfLoader.load(
       actions,
       settings,
       contactDetector,
+      dustCloud,
       transitionTo
     });
   },
@@ -186,6 +210,16 @@ function animate(timestamp) {
       skeletonAnalyzer.update(delta);
     } catch (err) {
       console.error('[SkeletonAnalyzer] Update-Fehler:', err);
+    }
+  }
+
+  // Staubwolken-Simulation aktualisieren
+  if (dustCloud) {
+    try {
+      const simDelta = settings.paused ? delta : delta * settings.speed;
+      dustCloud.update(simDelta);
+    } catch (err) {
+      console.error('[DustCloud] Update-Fehler:', err);
     }
   }
 

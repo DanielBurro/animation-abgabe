@@ -28,7 +28,7 @@ export class GroundContactDetector {
     // Front Toes liegen bei Bodenkontakt bei ca. 0.135 - 0.142 m
     // Rear Toes liegen bei Bodenkontakt bei ca. 0.241 - 0.254 m
     this.thresholdFront = options.thresholdFront ?? 0.155;
-    this.thresholdBack = options.thresholdBack ?? 0.265;
+    this.thresholdBack = options.thresholdBack ?? 0.270;
 
     // Callbacks für Events (z. B. für spätere Erweiterungen wie Aufprall-Effekte)
     this.impactListeners = [];
@@ -197,7 +197,7 @@ export class GroundContactDetector {
 
       if (this.domElements.threshNotches) {
         const frontPct = `${Math.min(100, Math.max(0, (this.thresholdFront / 0.5) * 100)).toFixed(1)}%`;
-        const backPct = `${Math.min(100, Math.max(0, (this.thresholdBack / 0.5) * 100)).toFixed(1)}%`;
+        const backPct = `${Math.min(100, Math.max(0, (this.thresholdBack / 0.65) * 100)).toFixed(1)}%`;
         if (this.domElements.threshNotches.FL) this.domElements.threshNotches.FL.style.left = frontPct;
         if (this.domElements.threshNotches.FR) this.domElements.threshNotches.FR.style.left = frontPct;
         if (this.domElements.threshNotches.HL) this.domElements.threshNotches.HL.style.left = backPct;

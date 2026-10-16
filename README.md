@@ -238,6 +238,26 @@ Eine messtechnische Abtastung der Knochenkoordinaten (`getWorldPosition`) über 
 * **3D-Bodenringe & Höhenlinien:** Direkt unter jedem Huf wird ein Kontaktring auf den Boden ($Y = 0.002$) projiziert. Bei Bodenkontakt leuchtet der Ring grün mit gefüllter Scheibe; in der Luft wird er transparent und zeigt als Schatten die Bodenprojektion. Eine dynamische Höhenlinie visualisiert die Distanz zum Boden.
 * **Studio-Integration:** Sämtliche Schwellwerte, Live-Zustände aller 4 Hufe (BODEN/LUFT), Aufprallgeschwindigkeiten sowie die Phasen-Diagramme sind vollständig im Studio-Seitenpanel (Reiter *Biomechanik*) integriert.
 
+### 8.3 Physikalisch basierte Staubwolken-Simulation (Partikelsystem)
+
+Trifft ein Huf auf den Boden auf (*Touchdown*-Event in `GroundContactDetector`), wird am exakten Aufprallpunkt $(X, 0, Z)$ eine physikalische Staubwolke ausgelöst, die die **Laufrichtung und Geschwindigkeit** des Pferdes berücksichtigt:
+
+1. **Laufrichtung & Rückwärts-Schub (Staubspur nach hinten):**
+   - Die aktuelle 3D-Laufrichtung $\vec{u}_{\text{forward}}$ des Pferdes wird per `horse.getWorldDirection()` in Echtzeit ermittelt.
+   - Die Geschwindigkeit des Pferdes ($v_{\text{Pferd}}$: *Walk* $\approx 1.6\text{ m/s}$, *Trot* $\approx 3.8\text{ m/s}$, *Gallop* $\approx 8.5\text{ m/s}$ oder reale Welt-Translation) erzeugt einen entgegengesetzten Rückwärts-Vektor $\vec{v}_{\text{backward}} = -\vec{u}_{\text{forward}} \cdot (v_{\text{Pferd}} \cdot k_{\text{kick}})$.
+   - Hinterhufe erhalten durch den Hufabstoß (Propulsion) einen zusätzlichen Vortriebs-Schub nach hinten.
+2. **Ring- & Fächerstreuung mit leichtem Auftrieb:**
+   - Horizontale Ringdispersion kombiniert mit dem Rückwärts-Schub ergibt eine charakteristische, nach hinten wehende Fächer-/Tränenform.
+   - Jeder Partikel erhält einen positiven Vertikalimpuls ($v_y > 0$, Auswurfswinkel ca. $25^\circ - 35^\circ$).
+3. **Bremsung durch Luftwiderstand (Stokes-Drag):**
+   - Gemäß $\vec{F}_{\text{drag}} = -c_{\text{drag}} \cdot m \cdot \vec{v}$ werden alle Geschwindigkeiten gedämpft ($\vec{v} \mathrel{*}= e^{-c_{\text{drag}} \cdot \Delta t}$).
+   - Dadurch verlangsamt sich der rasante Rückwärtsflug und die Partikel verweilen als stehende Staubschleppe in der Luft.
+4. **Schwerkraft (Gravitation):**
+   - Die Vertikalbeschleunigung $a_y = -g - c_{\text{drag}} \cdot v_y$ bremst den Aufstieg, lässt die Partikel ihren Scheitelpunkt erreichen und sanft zum Boden absinken.
+5. **Bodenkontakt & Verblassen:**
+   - Am Boden ($Y \le 0.005$) greift Bodenreibung. Die Partikel verblassen graduell ($\alpha \to 0$) bei gleichzeitiger volumetrischer Expansion des Radius.
+6. **Abhängigkeit vom Auftritt:**
+   - Partikelanzahl und Impuls skalieren dynamisch mit der Gangart (*Walk* $\approx 12$, *Trot* $\approx 35$, *Gallop* $\approx 65$ Partikel) sowie der Aufprallgeschwindigkeit.
 
 ---
 
