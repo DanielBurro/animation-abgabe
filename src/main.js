@@ -65,8 +65,8 @@ const settings = {
   // ── Bodenkontakt & Schwellwerte ──
   thresholdFront: 0.155,
   thresholdBack: 0.270,
-  showGroundRings: true,
-  showHeightLines: true,
+  showGroundRings: false,
+  showHeightLines: false,
   showBoneMarkers: false
 };
 
@@ -138,7 +138,7 @@ gltfLoader.load(
       backwardKick: 0.48,
       drag: 2.6,
       gravity: 6.5,
-      lifetime: 1.25,
+      lifetime: 0.4,
       particleSize: 0.09,
       color: '#c4a882'
     });

@@ -38,9 +38,9 @@ export class GroundContactDetector {
     this.hooves = {};
     this.hoofList = [];
 
-    // 3D Visualisierungs-Objekte
-    this.showGroundRings = options.showGroundRings ?? true;
-    this.showHeightLines = options.showHeightLines ?? true;
+    // 3D Visualisierungs-Objekte (standardmäßig ausgeschaltet)
+    this.showGroundRings = options.showGroundRings ?? false;
+    this.showHeightLines = options.showHeightLines ?? false;
     this.showBoneMarkers = options.showBoneMarkers ?? false;
     this.hudVisible = options.showHUD ?? false;
 
@@ -105,6 +105,7 @@ export class GroundContactDetector {
         depthWrite: false
       });
       const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.visible = this.showGroundRings;
 
       // Innere gefüllte Scheibe bei Kontakt
       const discGeo = new THREE.CircleGeometry(0.04, 24);
@@ -128,6 +129,7 @@ export class GroundContactDetector {
         opacity: 0.6
       });
       const line = new THREE.Line(lineGeo, lineMat);
+      line.visible = this.showHeightLines;
 
       // 3. Knochen-Kugel-Marker
       const sphereGeo = new THREE.SphereGeometry(0.025, 16, 16);

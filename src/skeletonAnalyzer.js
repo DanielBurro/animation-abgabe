@@ -309,7 +309,7 @@ export class SkeletonAnalyzer {
 
     // ── Staubwolke (Partikelsystem) ───────────────────────────
     if (this.dustCloud) {
-      const dustFolder = this.gui.addFolder('Staubwolke (Partikel)');
+      const dustFolder = this.gui.addFolder('Partikel');
 
       dustFolder
         .add(this.dustCloud, 'enabled')
@@ -340,7 +340,7 @@ export class SkeletonAnalyzer {
         .name('Schwerkraft');
 
       dustFolder
-        .add(this.dustCloud, 'lifetime', 0.3, 3.0, 0.1)
+        .add(this.dustCloud, 'lifetime', 0.1, 2.5, 0.05)
         .name('Lebensdauer (s)');
 
       dustFolder
@@ -362,7 +362,7 @@ export class SkeletonAnalyzer {
         }, 'testCloud')
         .name('💨 Test-Wolke auslösen');
 
-      dustFolder.open();
+      dustFolder.close(); // Standardmäßig eingeklappt
     }
   }
 
