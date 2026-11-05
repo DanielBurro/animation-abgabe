@@ -78,9 +78,11 @@ function transitionTo(nextName) {
 
   const duration = settings.crossfadeDuration ?? 0.4;
 
-  // Neue Aktion sauber vorbereiten und einblenden
+  // Neue Aktion sauber vorbereiten und einblenden.
+  // Tempo & Pause werden ausschließlich über mixer.timeScale gesteuert;
+  // die Aktion selbst läuft immer mit 1.0 (sonst multiplizieren sich die Faktoren).
   nextAction.enabled = true;
-  nextAction.setEffectiveTimeScale(settings.paused ? 0 : settings.speed);
+  nextAction.setEffectiveTimeScale(1.0);
   nextAction.setEffectiveWeight(1.0);
   nextAction.time = 0;
 
@@ -167,9 +169,12 @@ gltfLoader.load(
       // Start mit 'Rest' (oder erste Animation)
       settings.currentAnimation = actions['Rest'] ? 'Rest' : (animNames[0] || 'Walk');
       activeAction = actions[settings.currentAnimation];
-      activeAction.setEffectiveTimeScale(settings.speed);
+      activeAction.setEffectiveTimeScale(1.0);
       activeAction.setEffectiveWeight(1.0);
       activeAction.play();
+
+      // Einzige Stelle für Tempo & Pause: der Mixer
+      mixer.timeScale = settings.paused ? 0 : settings.speed;
     } else {
       console.warn('Keine Animationen in der GLB-Datei gefunden.');
     }
