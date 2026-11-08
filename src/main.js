@@ -5,7 +5,7 @@ import './style.css';
 import { GroundContactDetector } from './groundContact.js';
 import { SkeletonAnalyzer } from './skeletonAnalyzer.js';
 import { DustCloud } from './dustCloud.js';
-
+import { TailSimulation } from './tailSimulation.js';
 // 1. Szene, Kamera & Renderer aufsetzen ────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b1d23);
@@ -53,8 +53,11 @@ let horse;
 let contactDetector;
 let skeletonAnalyzer;
 let dustCloud;
+let tailSimulation;
 const actions = {};
 let activeAction;
+
+
 
 const settings = {
   currentAnimation: '',
@@ -106,7 +109,7 @@ controls.update();
 const gltfLoader = new GLTFLoader();
 
 gltfLoader.load(
-  'models/Horse.glb',
+  'models/Horse_Edit.glb',
   (gltf) => {
     horse = gltf.scene;
 
@@ -118,6 +121,10 @@ gltfLoader.load(
     });
 
     scene.add(horse);
+
+
+
+
     console.log('Modell geladen:', gltf);
 
     // ── 4.1 Bodenkontakt-Erkennung initialisieren ──────────────────
@@ -128,6 +135,8 @@ gltfLoader.load(
       showHeightLines: settings.showHeightLines,
       showBoneMarkers: settings.showBoneMarkers
     });
+
+    tailSimulation = new TailSimulation(horse, contactDetector);
 
     // ── 4.1.1 Staubwolken-Simulation initialisieren & an Auftritt koppeln ──
     dustCloud = new DustCloud(scene, {
@@ -149,6 +158,24 @@ gltfLoader.load(
     contactDetector.onImpact((impactEvent) => {
       dustCloud.emit(impactEvent);
     });
+
+
+contactDetector.onImpact((event) => {
+  if (settings.currentAnimation !== 'Gallop') return;
+
+  // Nur die beiden Hinterhufe berücksichtigen
+  if (event.hoof !== 'HL' && event.hoof !== 'HR') return;
+
+  const action = actions['Gallop'];
+  if (!action) return;
+
+  console.log(
+    `[Gallop] ${event.hoof} setzt auf`,
+    `Zeit: ${action.time.toFixed(3)} s`,
+    `Clipdauer: ${action.getClip().duration.toFixed(3)} s`
+  );
+});
+
 
     // ── 4.2 Animationen einrichten ─────────────────────────────────
     if (gltf.animations && gltf.animations.length > 0) {
@@ -210,22 +237,40 @@ function animate(timestamp) {
   timer.update(timestamp);
   const delta = timer.getDelta();
 
-  if (mixer) {
-    mixer.update(delta);
-  }
 
-  if (horse) {
-    horse.updateMatrixWorld(true);
-  }
+  
+if (tailSimulation) {
+  tailSimulation.beforeMixerUpdate();
+}
 
-  // Bodenkontakt-Erkennung und Anzeige aktualisieren
-  if (contactDetector) {
-    try {
-      contactDetector.update(delta, settings.currentAnimation);
-    } catch (err) {
-      console.error('[GroundContactDetector] Update-Fehler:', err);
-    }
+if (mixer) {
+  mixer.update(delta);
+}
+
+// Aktualisierte Bone-Positionen berechnen
+if (horse) {
+  horse.updateMatrixWorld(true);
+}
+
+// Aktuelle Hufpositionen und Bodenkontakte erfassen
+if (contactDetector) {
+  try {
+    contactDetector.update(delta, settings.currentAnimation);
+  } catch (err) {
+    console.error('[GroundContactDetector] Update-Fehler:', err);
   }
+}
+
+// Schweif reagiert auf die aktuellen Hufdaten
+if (tailSimulation) {
+  tailSimulation.update(delta, settings, activeAction);
+}
+
+// Matrizen nach der Schweifbewegung aktualisieren
+if (horse) {
+  horse.updateMatrixWorld(true);
+}
+
 
   // Skelett-Studio & Posing-Engine aktualisieren
   if (skeletonAnalyzer) {
