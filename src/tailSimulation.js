@@ -36,8 +36,8 @@ export class Spring {
 const GAIT_PROFILES = {
   Rest: {
     frequency: 1.4,
-    amplitude: 0.2,
-    verticalAmplitude: 0.05
+    amplitude: 0.4,
+    verticalAmplitude: 0.06
   },
   Walk: {
     frequency: 1.5,

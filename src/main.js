@@ -6,6 +6,9 @@ import { GroundContactDetector } from './groundContact.js';
 import { SkeletonAnalyzer } from './skeletonAnalyzer.js';
 import { DustCloud } from './dustCloud.js';
 import { TailSimulation } from './tailSimulation.js';
+import { ManeSimulation } from './maneSimulation.js';
+import { BodySimulation } from './bodySimulation.js';
+import { TorsoSimulation } from './torsoSimulation.js';
 // 1. Szene, Kamera & Renderer aufsetzen ────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b1d23);
@@ -54,6 +57,9 @@ let contactDetector;
 let skeletonAnalyzer;
 let dustCloud;
 let tailSimulation;
+let maneSimulation;
+let bodySimulation;
+let torsoSimulation;
 const actions = {};
 let activeAction;
 
@@ -109,23 +115,30 @@ controls.update();
 const gltfLoader = new GLTFLoader();
 
 gltfLoader.load(
-  'models/Horse_Edit.glb',
+  'models/Horse_Mane.glb',
   (gltf) => {
     horse = gltf.scene;
 
-    horse.traverse((child) => {
-      if (child.isMesh) {
-        child.material.map = horseTexture;
-        child.material.needsUpdate = true;
-      }
+   horse.traverse((child) => {
+  if (!child.isMesh) return;
+
+  const isMane =
+    child.name.startsWith('BézierCurve') ||
+    child.name.startsWith('BezierCurve');
+
+  if (isMane) {
+    child.material = new THREE.MeshBasicMaterial({
+      color: 0x39200A
     });
+  } else {
+    child.material.map = horseTexture;
+    child.material.color.set(0xffffff);
+    child.material.needsUpdate = true;
+  }
+});
 
     scene.add(horse);
 
-
-
-
-    console.log('Modell geladen:', gltf);
 
     // ── 4.1 Bodenkontakt-Erkennung initialisieren ──────────────────
     contactDetector = new GroundContactDetector(horse, scene, {
@@ -137,6 +150,12 @@ gltfLoader.load(
     });
 
     tailSimulation = new TailSimulation(horse, contactDetector);
+    // Mähnensimulation initialisieren
+    maneSimulation = new ManeSimulation(horse);
+    // Körperbewegungssimulation initialisieren
+    bodySimulation = new BodySimulation(horse);
+    // Torso-Bewegungssimulation initialisieren
+    torsoSimulation = new TorsoSimulation(horse);
 
     // ── 4.1.1 Staubwolken-Simulation initialisieren & an Auftritt koppeln ──
     dustCloud = new DustCloud(scene, {
@@ -160,21 +179,6 @@ gltfLoader.load(
     });
 
 
-contactDetector.onImpact((event) => {
-  if (settings.currentAnimation !== 'Gallop') return;
-
-  // Nur die beiden Hinterhufe berücksichtigen
-  if (event.hoof !== 'HL' && event.hoof !== 'HR') return;
-
-  const action = actions['Gallop'];
-  if (!action) return;
-
-  console.log(
-    `[Gallop] ${event.hoof} setzt auf`,
-    `Zeit: ${action.time.toFixed(3)} s`,
-    `Clipdauer: ${action.getClip().duration.toFixed(3)} s`
-  );
-});
 
 
     // ── 4.2 Animationen einrichten ─────────────────────────────────
@@ -239,37 +243,48 @@ function animate(timestamp) {
 
 
   
-if (tailSimulation) {
-  tailSimulation.beforeMixerUpdate();
-}
 
-if (mixer) {
-  mixer.update(delta);
-}
+  // Alte zusätzliche Rotationen entfernen
+  torsoSimulation?.beforeMixerUpdate();
+  bodySimulation?.beforeMixerUpdate();
+  tailSimulation?.beforeMixerUpdate();
+  maneSimulation?.beforeMixerUpdate();
 
-// Aktualisierte Bone-Positionen berechnen
-if (horse) {
-  horse.updateMatrixWorld(true);
-}
-
-// Aktuelle Hufpositionen und Bodenkontakte erfassen
-if (contactDetector) {
-  try {
-    contactDetector.update(delta, settings.currentAnimation);
-  } catch (err) {
-    console.error('[GroundContactDetector] Update-Fehler:', err);
+  // Normale Laufanimation
+  if (mixer) {
+    mixer.update(delta);
   }
-}
 
-// Schweif reagiert auf die aktuellen Hufdaten
-if (tailSimulation) {
-  tailSimulation.update(delta, settings, activeAction);
-}
+  // 1. Rücken und Rumpf bewegen
+  torsoSimulation?.update(delta, settings, activeAction);
 
-// Matrizen nach der Schweifbewegung aktualisieren
-if (horse) {
-  horse.updateMatrixWorld(true);
-}
+  // 2. Hals und Kopf bewegen
+  bodySimulation?.update(delta, settings, activeAction);
+
+  // Weltpositionen aktualisieren
+  if (horse) {
+    horse.updateMatrixWorld(true);
+  }
+
+  // Bodenkontakte nach der Körperbewegung berechnen
+  if (contactDetector) {
+    try {
+      contactDetector.update(delta, settings.currentAnimation);
+    } catch (err) {
+      console.error('[GroundContactDetector] Update-Fehler:', err);
+    }
+  }
+
+  // 3. Schweifbewegung
+  tailSimulation?.update(delta, settings, activeAction);
+
+  // 4. Mähnenbewegung
+  maneSimulation?.update(delta, settings);
+
+  if (horse) {
+    horse.updateMatrixWorld(true);
+  }
+
 
 
   // Skelett-Studio & Posing-Engine aktualisieren
