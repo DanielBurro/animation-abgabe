@@ -128,7 +128,8 @@ gltfLoader.load(
 
   if (isMane) {
     child.material = new THREE.MeshBasicMaterial({
-      color: 0x39200A
+      color: 0x39200A,
+      side: THREE.DoubleSide
     });
   } else {
     child.material.map = horseTexture;
