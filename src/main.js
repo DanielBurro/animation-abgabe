@@ -43,6 +43,10 @@ const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
 keyLight.position.set(5, 8, 5); // Schräg von oben für plastischere Schatten
 scene.add(keyLight);
 
+const fillLight = new THREE.DirectionalLight(0xffffff, 2.0);
+fillLight.position.set(-5, 8, -5); // Gespiegelt zum Key Light
+scene.add(fillLight);
+
 // 3. Separate Textur laden ─────────────────────────────────────
 const textureLoader = new THREE.TextureLoader();
 const horseTexture = textureLoader.load('/textures/Brown.png');
