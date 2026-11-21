@@ -1,6 +1,6 @@
 # Three.js Dokumentation: Animiertes 3D-Pferd mit Biomechanik, Staubpartikelsystem & GUI-Steuerung
 
-Diese Dokumentation erklärt die Architektur, mathematische Modellierung und den modularen Codeaufbau der Three.js-Anwendung zur Echtzeitsimulation und Analyse eines geriggten 3D-Pferdemodells. Besonderes Augenmerk liegt auf der biomechanischen Hufkontakt-Erkennung, der physikalisch basierten Staubwolken-Simulation mit Rückwärtsimpuls sowie den getroffenen architektonischen **Designentscheidungen**.
+Diese Dokumentation erklärt die Architektur, mathematische Modellierung und den modularen Codeaufbau der Three.js-Anwendung zur Echtzeitsimulation und Analyse eines geriggten 3D-Pferdemodells. Besonderes Augenmerk liegt auf der biomechanischen Hufkontakt-Erkennung, der physikalisch basierten Staubwolken-Simulation mit Rückwärtsimpuls, den **prozeduralen Zusatzanimationen** (Schweif, Mähne, Rumpf, Hals & Kopf als Feder-Simulationen über der Keyframe-Animation) sowie den getroffenen architektonischen **Designentscheidungen**.
 
 ---
 
@@ -29,7 +29,14 @@ Diese Dokumentation erklärt die Architektur, mathematische Modellierung und den
     - [10.1 2D-HUD Telemetrie mit Pegelbalken & Schwellwertkerben](#101-2d-hud-telemetrie-mit-pegelbalken--schwellwertkerben)
     - [10.2 Interaktives lil-gui Kontrollzentrum](#102-interaktives-lil-gui-kontrollzentrum)
 11. [Zusammenfassung aller zentralen Designentscheidungen](#11-zusammenfassung-aller-zentralen-designentscheidungen)
-12. [Anhang: Skelett-Hierarchie & Knochentabelle](#12-anhang-skelett-hierarchie--knochentabelle)
+12. [Prozedurale Zusatzanimation (Schweif, Mähne, Rumpf, Hals & Kopf)](#12-prozedurale-zusatzanimation-schweif-mähne-rumpf-hals--kopf)
+    - [12.1 Das Additiv-Prinzip: `beforeMixerUpdate` & `update`](#121-das-additiv-prinzip-beforemixerupdate--update)
+    - [12.2 `Spring`: gedämpfte Feder](#122-spring-gedämpfte-feder)
+    - [12.3 `TorsoSimulation`](#123-torsosimulation)
+    - [12.4 `BodySimulation`](#124-bodysimulation)
+    - [12.5 `TailSimulation`](#125-tailsimulation)
+    - [12.6 `ManeSimulation`](#126-manesimulation)
+13. [Anhang: Skelett-Hierarchie & Knochentabelle](#13-anhang-skelett-hierarchie--knochentabelle)
 
 ---
 
@@ -44,11 +51,15 @@ graph TD
     Contact["GroundContactDetector<br/>(Hufkontakt-Analyse & Schwellwertprüfung)"]
     Dust["DustCloud<br/>(GPU-Partikelsystem, Stokes-Drag, Slipstream)"]
     UI["SkeletonAnalyzer<br/>(2D-HUD Telemetrie, lil-gui, 3D-Rigg-Helfer)"]
+    Procedural["Torso-/Body-/Tail-/ManeSimulation<br/>(prozedurale Feder-Zusatzanimation)"]
 
     Main --> GLTF
     GLTF --> Contact
     GLTF --> Dust
     GLTF --> UI
+    GLTF --> Procedural
+    Main -- "beforeMixerUpdate() / update(delta, settings, activeAction)" --> Procedural
+    Contact -- "Hinterhuf-Positionen (Walk/Trab)" --> Procedural
     Contact -- "onImpact(event)" --> Dust
     Contact -- "Live-Daten (Höhe, Status)" --> UI
     Dust -- "Partikel- & Speed-Telemetrie" --> UI
@@ -58,11 +69,17 @@ graph TD
 ```
 
 ### Dateistruktur
-* **[`main.js`](file:///Users/danielburrows/Projekte/Animation-Simulation/Abgabe/src/main.js):** Hauptprogramm, WebGL-Setup, Event-Verknüpfung, Frameraten-unabhängige Animations- und Physikschleife.
-* **[`groundContact.js`](file:///Users/danielburrows/Projekte/Animation-Simulation/Abgabe/src/groundContact.js):** Biomechanische Erfassung der 4 Zehenknochen, Berechnung der Vertikalgeschwindigkeit, Erkennung von Aufprall- (*Touchdown*) und Abhebe-Events (*Lift-Off*), Verwaltung der 3D-Bodenringe.
-* **[`dustCloud.js`](file:///Users/danielburrows/Projekte/Animation-Simulation/Abgabe/src/dustCloud.js):** Physikalisches Partikelsystem mit Custom GLSL-Shadern, Auswertung der Bewegungsrichtung (`horse.getWorldDirection()`), Stokes-Luftwiderstand, Erdbeschleunigung und $O(1)$-Partikelpooling.
-* **[`skeletonAnalyzer.js`](file:///Users/danielburrows/Projekte/Animation-Simulation/Abgabe/src/skeletonAnalyzer.js):** 2D-HUD-Overlay für Huftelemetrie mit kontinuierlichen Pegelbalken, `lil-gui`-Kontrollzentrum und 3D-Skeletthelfer.
-* **[`style.css`](file:///Users/danielburrows/Projekte/Animation-Simulation/Abgabe/src/style.css):** Dunkles, semitransparentes HUD-Design mit modernen CSS-Grid- und Flexbox-Layouts.
+* **[`main.js`](src/main.js):** Hauptprogramm, WebGL-Setup, Event-Verknüpfung, Animationswechsel (`transitionTo`) und die Render-Schleife, die Mixer, prozedurale Simulationen, Hufkontakt und Staub in fester Reihenfolge aktualisiert.
+* **[`groundContact.js`](src/groundContact.js):** Biomechanische Erfassung der 4 Zehenknochen, Berechnung der Vertikalgeschwindigkeit, Erkennung von Aufprall- (*Touchdown*) und Abhebe-Events (*Lift-Off*), Verwaltung der 3D-Bodenringe.
+* **[`dustCloud.js`](src/dustCloud.js):** Physikalisches Partikelsystem mit Custom GLSL-Shadern, Auswertung der Bewegungsrichtung (`horse.getWorldDirection()`), Stokes-Luftwiderstand, Erdbeschleunigung und $O(1)$-Partikelpooling.
+* **[`skeletonAnalyzer.js`](src/skeletonAnalyzer.js):** 2D-HUD-Overlay für Huftelemetrie mit kontinuierlichen Pegelbalken, `lil-gui`-Kontrollzentrum und 3D-Skeletthelfer.
+* **[`tailSimulation.js`](src/tailSimulation.js):** Exportiert die Klasse `Spring` (gedämpfte Feder) und `TailSimulation` (Schweif, 6 Knochen, seitlich & vertikal).
+* **[`maneSimulation.js`](src/maneSimulation.js):** `ManeSimulation` – wellenförmige Bewegung der Mähnenstränge (`Mane_*`-Knochen).
+* **[`bodySimulation.js`](src/bodySimulation.js):** `BodySimulation` – Nickbewegung von Widerrist, Hals und Kopf.
+* **[`torsoSimulation.js`](src/torsoSimulation.js):** `TorsoSimulation` – leichte Rücken-/Beckenbewegung (`E_spine005`–`007`).
+* **[`style.css`](src/style.css):** Dunkles, semitransparentes HUD-Design mit modernen CSS-Grid- und Flexbox-Layouts.
+* **`public/models/`:** `Horse.glb` (Originalmodell), `Horse_Edit.glb` (um zusätzliche Schweifknochen erweitert), **`Horse_Mane.glb`** (aktuell geladen: zusätzlich mit Mähnen-Knochen und -Kurven). `public/textures/`: fünf Fellvarianten.
+* **[`vite.config.js`](vite.config.js):** Vite-Konfiguration; `server.open: true` öffnet beim Start (`npm run dev`) automatisch den Browser.
 
 ---
 
@@ -98,10 +115,15 @@ scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
 keyLight.position.set(5, 8, 5);
 scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xffffff, 2.0);
+fillLight.position.set(-5, 8, -5); // Gespiegelt zum Key Light
+scene.add(fillLight);
 ```
 
 * **`AmbientLight`:** Sorgt für weiche Grundausleuchtung der Modellunterseite und Bauchpartie.
 * **`DirectionalLight` (Key Light):** Schräg von oben platziert (`5, 8, 5`), um Muskeln und Sehnen des Pferdekörpers plastisch hervorzuheben und weiche Tiefenwirkung zu erzeugen.
+* **`DirectionalLight` (Fill Light):** Zweites, an der Szenenmitte gespiegeltes Licht (`-5, 8, -5`, Intensität `2.0`). Es hellt die vom Key Light abgewandte Pferdeseite auf, sodass beide Körperseiten – und die seitlich schwingende Mähne – gleichmäßig ausgeleuchtet sind.
 * **`GridHelper` & `AxesHelper`:** Visuelles Koordinatensystem (Rot = $X$, Grün = $Y$, Blau = $Z$). Der Boden liegt exakt bei der Ebene $Y = 0.0$.
 
 ---
@@ -135,22 +157,31 @@ Beim Wechsel traversiert die Anwendung das Pferdemodell und aktualisiert `materi
 Die 3D-Daten werden über den `GLTFLoader` geladen:
 
 ```javascript
-gltfLoader.load('models/Horse.glb', (gltf) => {
+gltfLoader.load('models/Horse_Mane.glb', (gltf) => {
   horse = gltf.scene;
 
   horse.traverse((child) => {
-    if (child.isMesh) {
+    if (!child.isMesh) return;
+
+    const isMane = child.name.startsWith('BézierCurve') ||
+                   child.name.startsWith('BezierCurve');
+
+    if (isMane) {
+      // Mähne: einfarbig, beidseitig sichtbar
+      child.material = new THREE.MeshBasicMaterial({ color: 0x39200A, side: THREE.DoubleSide });
+    } else {
       child.material.map = horseTexture;
+      child.material.color.set(0xffffff);
       child.material.needsUpdate = true;
     }
   });
 
   scene.add(horse);
-  // Initialisierung von Detektor, Partikelsystem, Animationen und GUI...
+  // Initialisierung von Detektor, Schweif/Mähne/Körper/Torso, Partikelsystem, Animationen und GUI...
 });
 ```
 
-* **`horse.traverse`:** Das geriggte Modell besteht aus mehreren Unterknoten (`THREE.SkinnedMesh`, `THREE.Bone`). `traverse` besucht rekursiv jeden Knoten und wendet das Material zielgerichtet nur auf die tatsächlichen Gittergeometrien (`child.isMesh`) an.
+* **`horse.traverse`:** Das geriggte Modell besteht aus mehreren Unterknoten (`THREE.SkinnedMesh`, `THREE.Bone`). `traverse` besucht rekursiv jeden Knoten und wendet das Material zielgerichtet nur auf die tatsächlichen Gittergeometrien (`child.isMesh`) an. Die Mähne (Meshes `BézierCurve*`/`BezierCurve*`) erhält ein eigenes, doppelseitiges `MeshBasicMaterial` (`0x39200A`), da die Felltextur auf den Kurven nicht sinnvoll abgebildet wird und die Strähnen von beiden Seiten sichtbar sein müssen.
 
 ---
 
@@ -190,7 +221,9 @@ In früheren Versionen führte das Umschalten zwischen Gangarten (insbesondere z
      const duration = settings.crossfadeDuration ?? 0.4;
 
      nextAction.enabled = true;
-     nextAction.setEffectiveTimeScale(settings.paused ? 0 : settings.speed);
+     // Tempo & Pause laufen ausschließlich über mixer.timeScale,
+     // die Aktion selbst läuft immer mit 1.0 (sonst multiplizieren sich die Faktoren)
+     nextAction.setEffectiveTimeScale(1.0);
      nextAction.setEffectiveWeight(1.0);
      nextAction.time = 0;
 
@@ -204,6 +237,8 @@ In früheren Versionen führte das Umschalten zwischen Gangarten (insbesondere z
      settings.currentAnimation = key;
    }
    ```
+3. **Zentrale Zeitsteuerung im Mixer:** Wiedergabegeschwindigkeit und Pause werden nur noch über `mixer.timeScale = settings.paused ? 0 : settings.speed` gesetzt. Die einzelnen Actions behalten `timeScale = 1.0`; so können sich Geschwindigkeitsfaktoren bei Übergängen nicht mehr doppelt multiplizieren.
+
    **Vorteile:** Vollständig immun gegen unendliche Zeitverzerrungen, saubere lineare Gewichtungsinterpolation und deterministischer Aktionszustand.
 
 ### 6.2 Zero-Duration Clip-Normalisierung & Aliasing
@@ -227,10 +262,28 @@ function animate(timestamp) {
   timer.update(timestamp);
   const delta = timer.getDelta();
 
+  // 1. Zusatzrotationen des letzten Frames entfernen
+  torsoSimulation?.beforeMixerUpdate();
+  bodySimulation?.beforeMixerUpdate();
+  tailSimulation?.beforeMixerUpdate();
+  maneSimulation?.beforeMixerUpdate();
+
+  // 2. Keyframe-Animation (überschreibt die Knochenposen)
   if (mixer) mixer.update(delta);
+
+  // 3. Prozedurale Zusatzbewegung: Rumpf, dann Hals & Kopf
+  torsoSimulation?.update(delta, settings, activeAction);
+  bodySimulation?.update(delta, settings, activeAction);
   if (horse) horse.updateMatrixWorld(true);
 
+  // 4. Hufkontakte NACH der Körperbewegung berechnen
   if (contactDetector) contactDetector.update(delta, settings.currentAnimation);
+
+  // 5. Schweif (nutzt Hinterhuf-Positionen) und Mähne
+  tailSimulation?.update(delta, settings, activeAction);
+  maneSimulation?.update(delta, settings);
+  if (horse) horse.updateMatrixWorld(true);
+
   if (skeletonAnalyzer) skeletonAnalyzer.update(delta);
 
   if (dustCloud) {
@@ -244,6 +297,7 @@ function animate(timestamp) {
 ```
 
 * **`THREE.Timer` vs. `performance.now()`:** Liefert eine präzise, geglättete Framedelta-Zeit $\Delta t$, die unabhängig von Monitorschwankungen (60 Hz, 120 Hz, 144 Hz) ist.
+* **Reihenfolge ist entscheidend:** Der Mixer schreibt jeden Frame die reinen Keyframe-Posen. Davor werden die Zusatzrotationen des Vorframes zurückgenommen, danach die neuen aufgelegt (siehe [Abschnitt 12.1](#121-das-additiv-prinzip-beforemixerupdate--update)). Der Hufkontakt wird bewusst *nach* Torso/Hals berechnet, damit er die tatsächlich dargestellte Pose auswertet, der Schweif *nach* dem Kontakt, weil er die Hinterhufpositionen benötigt. Update-Aufrufe von Kontakt, Analyzer und Staub sind per `try/catch` abgesichert, damit ein Fehler nicht die gesamte Schleife stoppt.
 * **Selektive Physik-Zeitskalierung:** Während der Mixer bei pausiertem Zustand stoppt (`timeScale = 0`), wird der Staubwolke `simDelta = delta` übergeben, sodass bereits erzeugte Partikel natürlich weiter absinken und verblassen, ohne in der Luft einzufrieren.
 
 ---
@@ -528,13 +582,64 @@ Das Menü am rechten Bildschirmrand gliedert alle Parameter in übersichtliche F
 | **Partikel-Shader & Rendering** | `THREE.PointsMaterial` mit PNG-Textur | Custom `ShaderMaterial` mit prozeduralem Gauss-Falloff in GLSL | Eliminiert Bilddateien, Ladeverzögerungen und CORS-Probleme; rendert sauberen, weichen volumetrischen Rauch bei minimaler GPU-Last. |
 | **Speicherverwaltung der Partikel** | Dynamisches Erzeugen/Zerstören via `new THREE.Vector3()` und `array.splice()` | Statisches `BufferGeometry`-Array (1800 Slots) mit **$O(1)$ Swap-with-Last** | Verhindert Garbage-Collection-Spikes und gewährleistet stabile 60/120 FPS ohne Mikroruckler. |
 | **Bodenring-Rendering** | Platzierung direkt auf der mathematischen Ebene $Y = 0.0$ | Gezielter Höhenversatz auf **$Y = 0.002\text{ m}$** | Verhindert störendes Z-Fighting mit dem Szenenraster (`GridHelper`) und Bodengeometrien. |
+| **Schweif-, Mähnen- & Körperbewegung** | Zusätzliche Keyframes in Blender oder direktes Überschreiben der Knochenposen | Prozedurale Zusatzrotation, die vor dem Mixer zurückgenommen und danach neu aufgelegt wird; Federn (`Spring`) für Nachschwingen | Clips bleiben unverändert, Rotationen akkumulieren nicht, Bewegung reagiert live auf Gangart, Tempo und Hufkontakte. |
+| **Tempo- & Pausensteuerung** | Zeitfaktor je Action (`setEffectiveTimeScale`) | Ausschließlich `mixer.timeScale`; Actions laufen mit `1.0` | Verhindert doppelt multiplizierte Zeitfaktoren bei Übergängen. |
 | **UI & Telemetrie-Architektur** | Überladenes Einzelfenster oder unstrukturierte Menüs | Zweiteilung: **2D-HUD links** (Monitoring) & **lil-gui rechts** (Parametrierung) | Trennt Live-Telemetrie strikt von Benutzerinteraktionen; Viewport bleibt übersichtlich und fokussiert. |
 
 ---
 
-## 12. Anhang: Skelett-Hierarchie & Knochentabelle
+## 12. Prozedurale Zusatzanimation (Schweif, Mähne, Rumpf, Hals & Kopf)
 
-Das Pferdeskelett in `Horse.glb` besteht aus **34 Knochen (`THREE.Bone`)**, organisiert als Szenengraph:
+Zusätzlich zu den Keyframe-Clips (`Rest`, `Walk`, `Trot`, `Gallop`) bewegen vier Module Teile des Skeletts prozedural. Sie reagieren auf die aktuelle Gangart (`settings.currentAnimation`), Tempo/Pause (`settings.speed`, `settings.paused`) und teils auf die Phase der laufenden Action (`activeAction.time / clip.duration`).
+
+### 12.1 Das Additiv-Prinzip: `beforeMixerUpdate` & `update`
+
+Jede Simulation legt ihre Rotation **additiv** über die Clip-Pose:
+
+1. `beforeMixerUpdate()` subtrahiert die im Vorframe addierte Zusatzrotation (`lastAngle`) vom Knochen.
+2. Der Mixer schreibt die Keyframe-Pose.
+3. `update(...)` berechnet eine neue Zusatzrotation und addiert sie; der Wert wird als `lastAngle` für den nächsten Frame gespeichert.
+
+Damit akkumulieren sich die Rotationen nicht und die Clips bleiben unverändert. Bei Pause (`dt = 0`) wird der letzte Winkel unverändert weiter angewendet, die Pose „friert“ also konsistent ein. `BodySimulation` arbeitet mit Quaternionen (lokale X-Achse), die übrigen mit Euler-Winkeln (`rotation.x`/`rotation.z`).
+
+### 12.2 `Spring`: gedämpfte Feder
+
+`Spring(stiffness, damping)` (in `tailSimulation.js`, von Torso, Body und Tail genutzt) glättet Zielwinkel zu weichem, nachschwingendem Verhalten:
+
+$$a = (\text{target} - x)\cdot k - v\cdot c, \qquad v \mathrel{+}= a\,\Delta t, \qquad x \mathrel{+}= v\,\Delta t$$
+
+Das Delta wird auf `1/30 s` begrenzt (`dt = min(delta, 1/30)`), damit die explizite Euler-Integration bei Frame-Einbrüchen oder steifen Federn nicht instabil wird.
+
+### 12.3 `TorsoSimulation`
+
+* Knochen `E_spine005`, `E_spine006`, `E_spine007` mit Amplitudenfaktoren `1.0`, `-0.35`, `-0.65` und Phasenversatz `0`, `0.10`, `0.18` (gegenläufige, wellenförmige Rückenbewegung), jeweils `Spring(60, 14)`.
+* Profile je Gangart (`frequency`, `amplitude`): Rest `0.8 / 0.001`, Walk `1.5 / 0.004`, Trot `2.8 / 0.012`, Gallop `4.0 / 0.032`.
+* Bei Trab und Galopp ist die Phase an die echte Animationsphase gekoppelt, sonst läuft sie frei über die interne Zeit.
+
+### 12.4 `BodySimulation`
+
+* Nickbewegung um die lokale X-Achse für `E_spine008` (Widerrist), `E_spine009`/`E_spine010` (Hals) und `E_spine011` (Kopf). Der Phasenversatz (`-0.2`, `0`, `0.2`, `0.4`) lässt den Kopf leicht verzögert folgen; Federn `Spring(200–220, 18–20)`.
+* Amplituden pro Gangart (z. B. Gallop: `0.05 / 0.075 / 0.085 / -0.13` rad, Kopf gegenläufig). `cycles` legt fest, wie viele Nickzyklen auf einen Clip-Durchlauf fallen (Trab: 2, sonst 1).
+* Außer im `Rest` wird die Phase aus der Clip-Zeit abgeleitet, damit die Kopfbewegung exakt zum Schrittzyklus passt.
+
+### 12.5 `TailSimulation`
+
+* Sechs Schweifknochen: `E_spine003`, `E_spine002`, `E_spine012`, `E_spine001`, `E_spine013`, `E_spine` (die Knochen `012`/`013` stammen aus der erweiterten `Horse_Edit.glb`/`Horse_Mane.glb`). Amplitude und Nachgiebigkeit steigen zur Spitze (Federn von `Spring(40, 13)` bis `Spring(14, 7)`); jeder Abschnitt ist um `index · 0.3` phasenverzögert.
+* Zwei Freiheitsgrade: **seitlich** (`rotation.z`) und **vertikal** (`rotation.x`), jeweils mit eigener Feder.
+* **Rest:** freie Sinusschwingung. **Walk/Trab:** das Seitensignal folgt der Z-Differenz der Hinterhufe (`contactDetector.hooves.HL/HR`, normiert auf ±1) – der Schweif schwingt mit dem Beckenwechsel. **Trab:** zusätzlich zwei vertikale Wellen pro Zyklus (Spitzenverstärkung bis `2.0`). **Galopp:** große, langsamere Welle über die Clip-Phase, kleinere Seitenbewegung.
+* Die vertikalen Federn werden gangartabhängig steifer (Trab `170`, Galopp `210–260`) und zur Spitze hin weniger gedämpft.
+
+### 12.6 `ManeSimulation`
+
+* Findet beim Start alle Knochen `Mane_*`, bestimmt die Strang-Wurzeln (Eltern ist kein `Mane_`-Knochen) und nimmt je Strang **3 Knochen**. Links/rechts wird über `_L_`/`_R_` im Namen erkannt, `Mane_Center_*` ist die Mittelsträhne.
+* Kein Federmodell, sondern phasenverschobene Sinuswellen (`phase = time·speed − i·0.95 + strandPhase`): **X** = Vor-/Rückschwingen (Amplituden je Gangart, z. B. Gallop `0.06 / 0.24 / 0.70` rad), **Z** = seitliches Abheben vom Hals weg (links/rechts mit unterschiedlicher Stärke, dazu `liftScale`/`tipBoost` je Gangart).
+* Die Mittelsträhne wird nach innen begrenzt (`inwardLimits`), damit sie nicht in den Hals eindringt. Das Zeit-Delta wird auf `0.05 s` begrenzt.
+
+---
+
+## 13. Anhang: Skelett-Hierarchie & Knochentabelle
+
+Das Pferdeskelett in `Horse.glb` besteht aus **34 Knochen (`THREE.Bone`)**, organisiert als Szenengraph. Das aktuell geladene `Horse_Mane.glb` ergänzt den Schweif um `E_spine012`/`E_spine013` (siehe [12.5](#125-tailsimulation)) sowie die `Mane_*`-Knochen der Mähne (siehe [12.6](#126-manesimulation)); die Tabelle unten beschreibt das Basisskelett:
 
 ```mermaid
 graph TD
