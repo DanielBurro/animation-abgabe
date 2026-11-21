@@ -293,7 +293,7 @@ export class SkeletonAnalyzer {
       .name('Felltextur')
       .onChange((val) => {
         const loader = new THREE.TextureLoader();
-        loader.load(`/textures/${val}.png`, (tex) => {
+        loader.load(`textures/${encodeURIComponent(val)}.png`, (tex) => {
           tex.flipY = false;
           tex.colorSpace = THREE.SRGBColorSpace;
           this.horse.traverse((child) => {

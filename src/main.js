@@ -49,7 +49,7 @@ scene.add(fillLight);
 
 // 3. Separate Textur laden ─────────────────────────────────────
 const textureLoader = new THREE.TextureLoader();
-const horseTexture = textureLoader.load('/textures/Brown.png');
+const horseTexture = textureLoader.load('textures/Brown.png');
 horseTexture.flipY = false; 
 horseTexture.colorSpace = THREE.SRGBColorSpace;
 
