@@ -173,8 +173,8 @@ gltfLoader.load(
       backwardKick: 0.48,
       drag: 2.6,
       gravity: 6.5,
-      lifetime: 0.4,
-      particleSize: 0.09,
+      lifetime: 0.6,
+      particleSize: 0.4,
       color: '#c4a882'
     });
 
