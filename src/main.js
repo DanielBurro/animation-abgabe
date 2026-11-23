@@ -174,7 +174,7 @@ gltfLoader.load(
       drag: 2.6,
       gravity: 6.5,
       lifetime: 0.6,
-      particleSize: 0.04,
+      particleSize: 0.07,
       color: '#c4a882'
     });
 
