@@ -62,7 +62,7 @@ export class DustCloud {
     this.drag = options.drag ?? 2.6;                   // Luftwiderstandsbeiwert c_drag (1/s)
     this.gravity = options.gravity ?? 6.5;             // Erdbeschleunigung g (m/s²)
     this.lifetime = options.lifetime ?? 0.6;           // Lebensdauer der Partikel (s)
-    this.particleSize = options.particleSize ?? 0.4;  // Basis-Partikelgröße (m)
+    this.particleSize = options.particleSize ?? 0.04;  // Basis-Partikelgröße (m)
     this.ringRadius = options.ringRadius ?? 0.06;      // Huf-Startradius (m)
     this.groundFriction = 0.82;                        // Reibung beim Auftreffen auf dem Boden
 
